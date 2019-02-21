@@ -1,0 +1,22 @@
+# IDE
+/.vscode
+
+# python
+__pycache__
+venv
+/.python-version
+
+# test
+.mypy_cache
+/.coverage
+/htmlcov
+
+# build
+/build
+/dist
+/.eggs
+/restful_functions.egg-info
+
+# data
+/restful-functions.db
+
