@@ -22,6 +22,7 @@ setup(
     long_description=readme,
     url='https://github.com/insight-technology/restful-functions',
     license='MIT License',
+    author='yszkst',
     packages=find_packages(exclude=['examples', 'tests']),
     test_suite='tests',
     setup_requires=test_requires + dev_requires,
