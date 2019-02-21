@@ -1,0 +1,3 @@
+docutils
+flake8
+pygments
