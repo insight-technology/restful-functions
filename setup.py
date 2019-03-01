@@ -29,7 +29,7 @@ setup(
     tests_require=test_requires,
     install_requires=requires,
     extras_require={'dev': dev_requires, 'test': test_requires},
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     zip_safe=False,
     classifiers=(
         'Development Status :: 3 - Alpha',
