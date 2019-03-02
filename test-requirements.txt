@@ -1,4 +1,5 @@
 mypy
 pytest
 pytest-runner
+redis
 tox

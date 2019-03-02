@@ -34,7 +34,7 @@ def validate_arg(
             if isinstance(value, float):
                 return ArgValidateResult(True, int(value))
             return ArgValidateResult(True, int(stringified, 10))
-            
+
         elif arg_type == ArgType.FLOAT:
             if isinstance(value, bool):
                 raise ValueError
@@ -99,6 +99,16 @@ class JobDefinition:
             arg_definitions: List[ArgDefinition],
             endpoint: str,
             description: str):
+        """
+        Parameters
+        ----------
+        func : function
+        max_concurrency : Max Concurrency
+        arg_definitions : A List of ArgDefinitions
+        endpoint : API Endpoint Name
+        description : A Description for this job.
+        ----------
+        """
         self.func = func
         self.max_concurrency = max_concurrency
         self.arg_definitions = arg_definitions

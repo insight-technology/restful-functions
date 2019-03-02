@@ -1,0 +1,7 @@
+version: '3'
+
+services:
+  restful-function-test-db:
+    image: redis:5
+    ports:
+      - 6379:6379

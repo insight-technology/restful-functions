@@ -18,7 +18,18 @@ class TaskStoreSettings:
             redis_db: int = 0,
             sqlite_dsn: str = 'restful-functions.db',
             expired: int = 60 * 60 * 24):
-        """
+        """Settings for Intialize TaskStore
+
+        Parameters
+        ----------
+        store_type : 'sqlite'(default) or 'redis'
+        redis_host : RedisServerHost
+        redis_port : RedisServerPort
+        redis_db : RedisServerDB
+        sqlite_dsn : SQLite Connection String. Can't use In-Memory Database.
+        expired : Expiration Time for storing a task result.
+            The time is measured in seconds.
+        ----------
         """
         self.type = store_type
         self.redis_host = redis_host
@@ -29,6 +40,9 @@ class TaskStoreSettings:
 
 
 class TaskStore:
+    """Abstract TaskStore Class
+    """
+
     def register_job(self, func_name: str):
         raise NotImplementedError
 
@@ -52,14 +66,20 @@ class TaskStore:
 
 
 class RedisTaskStore(TaskStore):
+    """Redis Implementation of TaskStore
+
+    Use Redis to store tasks.
+    """
+
     def __init__(
             self,
             host: str,
             port: int,
             db: int,
             expired: int):
-
         import redis
+        self._redis_mod = redis
+
         self._r = redis.StrictRedis(host=host, port=port, db=db)
         self._expired = expired
         self._logger = get_logger(self.__class__.__name__)
@@ -86,8 +106,6 @@ class RedisTaskStore(TaskStore):
         """
         Count Up if func can run
         """
-        from redis import WatchError
-
         with self._r.pipeline() as pipe:
             while True:
                 try:
@@ -103,7 +121,7 @@ class RedisTaskStore(TaskStore):
                     pipe.execute()
                     return True
 
-                except WatchError as e:
+                except self._redis_mod.WatchError as e:
                     self._logger.debug(e)
                     continue
 
@@ -112,6 +130,11 @@ class RedisTaskStore(TaskStore):
 
 
 class SQLiteTaskStore(TaskStore):
+    """SQLite Implementation of TaskStore
+
+    Use SQLite to store tasks.
+    """
+
     _REGISTER_SQL = 'REPLACE INTO job(key, count) values(?, 0)'
     _SET_STATUS_SQL = 'REPLACE INTO task(key, value, expired) values(?, ?, ?)'
     _GET_STATUS_SQL = 'SELECT value FROM task WHERE key = ? LIMIT 1'
@@ -243,6 +266,17 @@ class SQLiteTaskStore(TaskStore):
 def task_store_factory(
         settings: TaskStoreSettings,
         refresh_db: bool = True) -> TaskStore:
+    """A Factory of TaskStore
+
+    Generate an Instance of TaskStore Implementation by TaskStoreSettings.
+
+    Parameters
+    ----------
+    settings : TaskStoreSettings
+    refresh_db : Clear DB on initialization.
+        This is set True when called first by Main Process.
+    ----------
+    """
 
     if settings.type == 'redis':
         return RedisTaskStore(
@@ -320,9 +354,9 @@ class TaskManager:
     def entrypoints(self) -> List[str]:
         return [elm.endpoint for elm in self._job_definitions.values()]
 
-    def add_job(self, func_name: str, job: JobDefinition):
-        self._job_definitions[func_name] = job
-        self._task_store.register_job(func_name)
+    def add_job(self, job: JobDefinition):
+        self._job_definitions[job.func.__name__] = job
+        self._task_store.register_job(job.func.__name__)
 
     def has_job(self, func_name: str) -> bool:
         return func_name in self._job_definitions
@@ -338,6 +372,9 @@ class TaskManager:
 
     def update_max_concurrency(self, func_name: str, value: int) -> int:
         if value < 0:
+            raise ValueError
+
+        if func_name not in self._job_definitions:
             raise ValueError
 
         self._job_definitions[func_name].max_concurrency = value
@@ -365,7 +402,7 @@ class TaskManager:
     def fork_process(
             self,
             func_name: str,
-            func_args) -> TryForkResult:
+            func_args: Dict[str, Any]) -> TryForkResult:
 
         task_id = str(uuid4())
         jobnized_func = self._job_decorator(func_name, task_id)
