@@ -90,47 +90,47 @@ def test_task_store_job_operation(
     assert store.current_count(JOB_NAME) == 2
 
 
-# @pytest.mark.parametrize('settings', [
-#     TaskStoreSettings(
-#         store_type='redis',
-#         redis_host=TEST_CONFIG.REDIS_HOST,
-#         redis_port=TEST_CONFIG.REDIS_PORT,
-#         redis_db=TEST_CONFIG.REDIS_DB,
-#         expired=1,
-#     ),
-#     TaskStoreSettings(
-#         store_type='redis',
-#         redis_host=TEST_CONFIG.REDIS_HOST,
-#         redis_port=TEST_CONFIG.REDIS_PORT,
-#         redis_db=TEST_CONFIG.REDIS_DB,
-#         expired=100000,
-#     ),
-#     TaskStoreSettings(
-#         store_type='sqlite',
-#         expired=1,
-#     ),
-#     TaskStoreSettings(
-#         store_type='sqlite',
-#         expired=100000,
-#     ),
-# ])
-# def test_task_store_task_status_operation(
-#         settings: TaskStoreSettings):
-#     TASK_ID = 'fake_id'
-#     TASK_RESULT = 'artifact'
-#     SLEEP_TIME = 2
+@pytest.mark.parametrize('settings', [
+    TaskStoreSettings(
+        store_type='redis',
+        redis_host=TEST_CONFIG.REDIS_HOST,
+        redis_port=TEST_CONFIG.REDIS_PORT,
+        redis_db=TEST_CONFIG.REDIS_DB,
+        expired=1,
+    ),
+    TaskStoreSettings(
+        store_type='redis',
+        redis_host=TEST_CONFIG.REDIS_HOST,
+        redis_port=TEST_CONFIG.REDIS_PORT,
+        redis_db=TEST_CONFIG.REDIS_DB,
+        expired=100000,
+    ),
+    TaskStoreSettings(
+        store_type='sqlite',
+        expired=1,
+    ),
+    TaskStoreSettings(
+        store_type='sqlite',
+        expired=100000,
+    ),
+])
+def test_task_store_task_status_operation(
+        settings: TaskStoreSettings):
+    TASK_ID = 'fake_id'
+    TASK_RESULT = 'artifact'
+    SLEEP_TIME = 2
 
-#     store = task_store_factory(settings, True)
+    store = task_store_factory(settings, True)
 
-#     store.set_status(TASK_ID, JobState.DONE, TASK_RESULT)
-#     sleep(SLEEP_TIME)
+    store.set_status(TASK_ID, JobState.DONE, TASK_RESULT)
+    sleep(SLEEP_TIME)
 
-#     ret = store.get_status(TASK_ID)
+    ret = store.get_status(TASK_ID)
 
-#     if settings.expired < SLEEP_TIME:
-#         assert ret is None
-#     else:
-#         assert ret['result'] == TASK_RESULT
+    if settings.expired < SLEEP_TIME:
+        assert ret is None
+    else:
+        assert ret['result'] == TASK_RESULT
 
 
 @pytest.mark.parametrize('settings', [
