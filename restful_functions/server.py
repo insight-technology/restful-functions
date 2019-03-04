@@ -181,7 +181,6 @@ class FunctionServer:
         api_blocking_endpoint = f'/call/blocking/{endpoint_name}'
 
         self._task_manager.add_job(
-            func_name,
             JobDefinition(
                 func=func,
                 max_concurrency=max_concurrency,

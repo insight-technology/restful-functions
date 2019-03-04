@@ -19,4 +19,4 @@ venv
 
 # data
 /restful-functions.db
-
+/restful-functions.db-journal
