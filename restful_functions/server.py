@@ -53,6 +53,38 @@ class FunctionServer:
         self._logger = get_logger(self.__class__.__name__, debug)
 
     def start(self):
+        self._construct_endpoints()
+
+        if self._register_sys_signals:
+            def sig_handler(signum, frame):
+                if self._shutdown_mode == 'terminate':
+                    self.exit_with_terminate()
+
+                elif self._shutdown_mode == 'join':
+                    if self._main_process_id == os.getpid():
+                        print('Joining Processes now.')
+                        print('Press Ctrl+C again to force exit.')
+                    signal.signal(signal.SIGINT, lambda _, __: self.exit_with_terminate())  # NOQA
+                    signal.signal(signal.SIGTERM, lambda _, __: self.exit_with_terminate())  # NOQA
+                    self.exit_with_join()
+
+                else:
+                    raise ValueError
+
+            signal.signal(signal.SIGINT, sig_handler)
+            signal.signal(signal.SIGTERM, sig_handler)
+
+        self._app.run(
+            host='0.0.0.0',
+            port=self._port,
+            workers=1,
+            register_sys_signals=False)
+
+    def _construct_endpoints(self):
+        """
+
+        Splited to Unit Test with no server running.
+        """
         @self._app.route('/api/list/data')
         async def get_api_list_data(request: request.Request):
             return response.json(self._task_manager.entrypoints)
@@ -95,30 +127,19 @@ class FunctionServer:
             return response.json(
                 self._task_manager.get_status(task_id))
 
-        if self._register_sys_signals:
-            def sig_handler(signum, frame):
-                if self._shutdown_mode == 'terminate':
-                    self.exit_with_terminate()
+        @self._app.route('/task/done/<task_id>')
+        async def get_task_done(request: request.Request, task_id: str):
+            status = self._task_manager.get_status(task_id)
+            if status is None:
+                return response.json({}, 404)
+            return response.json(status['status'] != JobState.RUNNING)
 
-                elif self._shutdown_mode == 'join':
-                    if self._main_process_id == os.getpid():
-                        print('Joining Processes now.')
-                        print('Press Ctrl+C again to force exit.')
-                    signal.signal(signal.SIGINT, lambda _, __: self.exit_with_terminate())  # NOQA
-                    signal.signal(signal.SIGTERM, lambda _, __: self.exit_with_terminate())  # NOQA
-                    self.exit_with_join()
-
-                else:
-                    raise ValueError
-
-            signal.signal(signal.SIGINT, sig_handler)
-            signal.signal(signal.SIGTERM, sig_handler)
-
-        self._app.run(
-            host='0.0.0.0',
-            port=self._port,
-            workers=1,
-            register_sys_signals=False)
+        @self._app.route('/task/result/<task_id>')
+        async def get_task_result(request: request.Request, task_id: str):
+            status = self._task_manager.get_status(task_id)
+            if status is None:
+                return response.json({}, 404)
+            return response.json(status['result'])
 
     def _generate_func_args(
             self,

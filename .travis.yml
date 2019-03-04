@@ -1,9 +1,10 @@
+dist: xenial
 language: python
 services:
   - redis-server
 python:
   - "3.6"
-  - "3.7-dev"
+  - "3.7"
 env:
   - PIP_USE_MIRRORS=true
 script:

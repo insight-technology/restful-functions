@@ -1,5 +1,8 @@
+aiohttp
 mypy
 pytest
 pytest-runner
 redis
+requests
 tox
+
