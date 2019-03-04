@@ -388,7 +388,6 @@ class TaskManager:
             task_store = task_store_factory(self._task_store_settings, False)
 
             try:
-                task_store.set_status(task_id, JobState.RUNNING, {})
                 ret = self._job_definitions[func_name].func(**job_args)
                 task_store.set_status(task_id, JobState.DONE, ret)
             except Exception as e:
@@ -418,6 +417,8 @@ class TaskManager:
                 f'Over Max Concurrency {self.get_max_concurrency(func_name)}',
                 ''
             )
+
+        self._task_store.set_status(task_id, JobState.RUNNING, {})
 
         p.start()
         self._processes.append(p)
