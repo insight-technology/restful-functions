@@ -212,6 +212,8 @@ class FunctionServer:
 
         @self._app.post(api_endpoint)
         async def post_task_function(request: request.Request):
+            self._logger.info(f'Task Requested : Endpoint {api_endpoint} : Payload {request.json}')  # NOQA
+
             try:
                 func_args = self._generate_func_args(
                     arg_definitions,
@@ -225,6 +227,8 @@ class FunctionServer:
 
         @self._app.post(api_blocking_endpoint)
         async def post_task_blocking_function(request: request.Request):
+            self._logger.info(f'Task Requested : Endpoint {api_blocking_endpoint} : Payload {request.json}')  # NOQA
+
             try:
                 func_args = self._generate_func_args(
                     arg_definitions,
@@ -236,6 +240,8 @@ class FunctionServer:
             result = self._task_manager.fork_process(func_name, func_args)
             if not result.successed:
                 return response.json(result.to_dict())
+
+            self._logger.info(f'Start Polling : task_id {result.task_id}')
 
             status = None
             while True:

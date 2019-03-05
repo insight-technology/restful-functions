@@ -6,8 +6,8 @@ __restful_functions_loggers = {}
 def get_logger(name: str, debug: bool = False) -> logging.Logger:
     global __restful_functions_loggers
 
-    if __restful_functions_loggers.get(name):
-        return __restful_functions_loggers.get(name)
+    if name in __restful_functions_loggers:
+        return __restful_functions_loggers[name]
 
     logger = logging.getLogger(name)
     handler = logging.StreamHandler()
