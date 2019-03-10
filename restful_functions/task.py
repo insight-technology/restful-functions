@@ -113,7 +113,7 @@ class RedisTaskStore(TaskStore):
                     pipe.watch(key)
 
                     count = int(pipe.get(key).decode())
-                    if count >= max_concurrency:
+                    if max_concurrency != 0 and count >= max_concurrency:
                         return False
 
                     pipe.multi()

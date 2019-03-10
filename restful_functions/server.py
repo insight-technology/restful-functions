@@ -96,7 +96,7 @@ class FunctionServer:
 
                 elif self._shutdown_mode == 'join':
                     if self._main_process_id == os.getpid():
-                        print('Joining Processes IOLoop.now.')
+                        print('Joining Processes now.')
                         print('Press Ctrl+C again to force exit.')
                     signal.signal(signal.SIGINT, lambda _, __: self.exit_with_terminate())  # NOQA
                     signal.signal(signal.SIGTERM, lambda _, __: self.exit_with_terminate())  # NOQA
@@ -239,11 +239,32 @@ class FunctionServer:
             self,
             func: Callable,
             arg_definitions: List[ArgDefinition],
-            max_concurrency,
+            max_concurrency: int = 0,
             description: str = '',
             endpoint_name: Optional[str] = None):
+        """Add Job to FunctionServer.
 
-        if max_concurrency < 1:
+        Parameters
+        ----------
+        func
+            A Python Function.
+        arg_definitions
+            Definitions of Arguments.
+        max_concurrency
+            A Limitation for number of parallel execution.
+            (the default is 0, which tells there is No Limitation.)
+        description
+            A Description for The Function. (the default is '', which [default_description])
+        endpoint_name
+            REST API's URL name. (the default is None, which uses the function name.)
+
+        Raises
+        ------
+        ValueError
+            For max_concurrency.
+        """
+
+        if max_concurrency < 0:
             raise ValueError
 
         func_name = func.__name__
