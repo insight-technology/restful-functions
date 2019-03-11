@@ -21,6 +21,38 @@ class FunctionServer:
             debug: bool = False,
             register_sys_signals: bool = True,
             task_store_settings: TaskStoreSettings = TaskStoreSettings()):
+        """Setup FunctionServer.
+
+        Parameters
+        ----------
+        shutdown_mode
+            An options to shutdown processes forked by FunctionServer.
+            Acceptable Options are 'join' and 'terminate'.
+            'join' is waiting until the processes finished.
+            'terminate' is killing the processes immediately.
+        port
+            RESTful APIs port. (the default is 8888)
+        timeout
+            Timeout of keeping the connection after a connection established.
+            This is measured in Second.
+            (the default is 60*60*24)
+        polling_interval
+            An interval of confirming processes runnning.
+            FuncitonServer repeats checking a process status when you use blocking API.
+            (the default is 1.0)
+        debug
+            Is Debug Mode or Not. (the default is False)
+        register_sys_signals
+            Registering Custom Signal Hanlders for SIG_TERM and SIG_INT. (the default is True)
+        task_store_settings
+            TaskStoreSettings. (the default is TaskStoreSettings(), which uses SQLite.)
+
+        Raises
+        ------
+        ValueError
+            For 'shutodown_mode', 'timeout', 'polling_interval'.
+
+        """
 
         if shutdown_mode not in ['terminate', 'join']:
             raise ValueError('"shutdown_mode" should be "terminate" or "join"')
@@ -53,6 +85,8 @@ class FunctionServer:
         self._logger = get_logger(self.__class__.__name__, debug)
 
     def start(self):
+        """Start FunctionServer Process.
+        """
         self._construct_endpoints()
 
         if self._register_sys_signals:
@@ -145,7 +179,25 @@ class FunctionServer:
             self,
             arg_definitions: List[ArgDefinition],
             data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """[summary]
 
+        Parameters
+        ----------
+        arg_definitions
+            Definitions of Arguments.
+        data
+            Parameters for the target function Passed by API.
+
+        Raises
+        ------
+        ValueError
+            An Exception is raises if 'data' is invalid for 'arg_definitions'.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Validated and formated data.
+        """
         if data is None:
             data = {}
 
@@ -168,6 +220,8 @@ class FunctionServer:
         return func_args
 
     def exit_with_terminate(self):
+        """Kill the processes forked by FunctionServer.
+        """
         if self._main_process_id == os.getpid():
             self._task_manager.terminate_processes()
             get_event_loop().stop()
@@ -175,6 +229,8 @@ class FunctionServer:
             sys.exit(0)
 
     def exit_with_join(self):
+        """Wait all the processes finish.
+        """
         if self._main_process_id == os.getpid():
             self._task_manager.join_processes()
             get_event_loop().stop()
@@ -183,11 +239,32 @@ class FunctionServer:
             self,
             func: Callable,
             arg_definitions: List[ArgDefinition],
-            max_concurrency,
+            max_concurrency: int = 0,
             description: str = '',
             endpoint_name: Optional[str] = None):
+        """Add Job to FunctionServer.
 
-        if max_concurrency < 1:
+        Parameters
+        ----------
+        func
+            A Python Function.
+        arg_definitions
+            Definitions of Arguments.
+        max_concurrency
+            A Limitation for number of parallel execution.
+            (the default is 0, which tells there is No Limitation.)
+        description
+            A Description for The Function. (the default is '', which [default_description])
+        endpoint_name
+            REST API's URL name. (the default is None, which uses the function name.)
+
+        Raises
+        ------
+        ValueError
+            For max_concurrency.
+        """
+
+        if max_concurrency < 0:
             raise ValueError
 
         func_name = func.__name__
