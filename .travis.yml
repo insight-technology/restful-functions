@@ -1,11 +1,16 @@
 dist: xenial
 language: python
-services:
-  - redis-server
-python:
-  - "3.6"
-  - "3.7"
+cache: pip
 env:
   - PIP_USE_MIRRORS=true
+python:
+  - 3.6
+  - 3.7
+services:
+  - redis-server
+install: pip install -r test-requirements.txt
 script:
+  - flake8 ./
+  - pydocstyle ./
+  - mypy ./
   - python setup.py test

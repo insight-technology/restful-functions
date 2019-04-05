@@ -1,6 +1,7 @@
 import logging
+from typing import Dict
 
-__restful_functions_loggers = {}
+__restful_functions_loggers: Dict[str, logging.Logger] = {}
 
 
 def get_logger(name: str, debug: bool = False) -> logging.Logger:
