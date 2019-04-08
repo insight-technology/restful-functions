@@ -99,7 +99,8 @@ class JobDefinition:
             arg_definitions: List[ArgDefinition],
             endpoint: str,
             description: str):
-        """
+        """.
+
         Parameters
         ----------
         func : function
@@ -107,7 +108,7 @@ class JobDefinition:
         arg_definitions : A List of ArgDefinitions
         endpoint : API Endpoint Name
         description : A Description for this job.
-        ----------
+
         """
         self.func = func
         self.max_concurrency = max_concurrency

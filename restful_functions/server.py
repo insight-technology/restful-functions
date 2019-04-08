@@ -53,7 +53,6 @@ class FunctionServer:
             For 'shutodown_mode', 'timeout', 'polling_interval'.
 
         """
-
         if shutdown_mode not in ['terminate', 'join']:
             raise ValueError('"shutdown_mode" should be "terminate" or "join"')
 
@@ -85,8 +84,7 @@ class FunctionServer:
         self._logger = get_logger(self.__class__.__name__, debug)
 
     def start(self):
-        """Start FunctionServer Process.
-        """
+        """Start FunctionServer Process."""
         self._construct_endpoints()
 
         if self._register_sys_signals:
@@ -115,10 +113,7 @@ class FunctionServer:
             register_sys_signals=False)
 
     def _construct_endpoints(self):
-        """
-
-        Splited to Unit Test with no server running.
-        """
+        """Splited to Unit Test with no server running."""
         @self._app.route('/api/list/data')
         async def get_api_list_data(request: request.Request):
             return response.json(self._task_manager.entrypoints)
@@ -179,7 +174,7 @@ class FunctionServer:
             self,
             arg_definitions: List[ArgDefinition],
             data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        """[summary]
+        """.
 
         Parameters
         ----------
@@ -197,6 +192,7 @@ class FunctionServer:
         -------
         Dict[str, Any]
             Validated and formated data.
+
         """
         if data is None:
             data = {}
@@ -220,8 +216,7 @@ class FunctionServer:
         return func_args
 
     def exit_with_terminate(self):
-        """Kill the processes forked by FunctionServer.
-        """
+        """Kill the processes forked by FunctionServer."""
         if self._main_process_id == os.getpid():
             self._task_manager.terminate_processes()
             get_event_loop().stop()
@@ -229,8 +224,7 @@ class FunctionServer:
             sys.exit(0)
 
     def exit_with_join(self):
-        """Wait all the processes finish.
-        """
+        """Wait all the processes finish."""
         if self._main_process_id == os.getpid():
             self._task_manager.join_processes()
             get_event_loop().stop()
@@ -262,8 +256,8 @@ class FunctionServer:
         ------
         ValueError
             For max_concurrency.
-        """
 
+        """
         if max_concurrency < 0:
             raise ValueError
 

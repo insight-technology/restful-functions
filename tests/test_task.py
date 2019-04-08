@@ -130,6 +130,7 @@ def test_task_store_task_status_operation(
     if settings.expired < SLEEP_TIME:
         assert ret is None
     else:
+        assert ret is not None
         assert ret['result'] == TASK_RESULT
 
 
@@ -157,8 +158,8 @@ def test_task_manager(settings: TaskStoreSettings):
             TEST_FUNC,
             1,
             [
-                ArgDefinition(ArgType.INTEGER, True, '1st'),
-                ArgDefinition(ArgType.INTEGER, True, '2nd'),
+                ArgDefinition('a', ArgType.INTEGER, True, '1st'),
+                ArgDefinition('b', ArgType.INTEGER, True, '2nd'),
             ],
             TEST_FUNC.__name__,
             'test'))

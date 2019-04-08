@@ -18,18 +18,24 @@ class TaskStoreSettings:
             redis_db: int = 0,
             sqlite_dsn: str = 'restful-functions.db',
             expired: int = 60 * 60 * 24):
-        """Settings for Intialize TaskStore
+        """Settings for Intialize TaskStore.
 
         Parameters
         ----------
-        store_type : 'sqlite'(default) or 'redis'
-        redis_host : RedisServerHost
-        redis_port : RedisServerPort
-        redis_db : RedisServerDB
-        sqlite_dsn : SQLite Connection String. Can't use In-Memory Database.
-        expired : Expiration Time for storing a task result.
+        store_type
+            'sqlite'(default) or 'redis'
+        redis_host
+            RedisServerHost
+        redis_port
+            RedisServerPort
+        redis_db
+            RedisServerDB
+        sqlite_dsn
+            SQLite Connection String. Can't use In-Memory Database.
+        expired
+            Expiration Time for storing a task result.
             The time is measured in seconds.
-        ----------
+
         """
         self.type = store_type
         self.redis_host = redis_host
@@ -40,8 +46,7 @@ class TaskStoreSettings:
 
 
 class TaskStore:
-    """Abstract TaskStore Class
-    """
+    """Abstract TaskStore Class."""
 
     def register_job(self, func_name: str):
         raise NotImplementedError
@@ -49,16 +54,13 @@ class TaskStore:
     def set_status(self, task_id: str, status: str, result: Any):
         raise NotImplementedError
 
-    def get_status(self, task_id: str) -> Optional[Dict]:
+    def get_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         raise NotImplementedError
 
     def current_count(self, func_name: str) -> int:
         raise NotImplementedError
 
     def count_up_if_could(self, func_name: str, max_concurrency: int) -> bool:
-        """
-        Count Up if func can run
-        """
         raise NotImplementedError
 
     def decrement_count(self, func_name: str):
@@ -66,7 +68,7 @@ class TaskStore:
 
 
 class RedisTaskStore(TaskStore):
-    """Redis Implementation of TaskStore
+    """Redis Implementation of TaskStore.
 
     Use Redis to store tasks.
     """
@@ -93,7 +95,7 @@ class RedisTaskStore(TaskStore):
             pickle.dumps({'status': status, 'result': result}),
             ex=self._expired)
 
-    def get_status(self, task_id: str) -> Optional[Dict]:
+    def get_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         val = self._r.get(task_id)
         if val is None:
             return None
@@ -103,9 +105,6 @@ class RedisTaskStore(TaskStore):
         return int(self._r.get(f'count_{func_name}'))
 
     def count_up_if_could(self, func_name: str, max_concurrency: int) -> bool:
-        """
-        Count Up if func can run
-        """
         with self._r.pipeline() as pipe:
             while True:
                 try:
@@ -130,7 +129,7 @@ class RedisTaskStore(TaskStore):
 
 
 class SQLiteTaskStore(TaskStore):
-    """SQLite Implementation of TaskStore
+    """SQLite Implementation of TaskStore.
 
     Use SQLite to store tasks.
     """
@@ -196,7 +195,7 @@ class SQLiteTaskStore(TaskStore):
         conn.commit()
         conn.close()
 
-    def get_status(self, task_id: str) -> Optional[Dict]:
+    def get_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         current_unix_time = int(datetime.datetime
                                 .now(datetime.timezone.utc)
                                 .timestamp())
@@ -228,9 +227,6 @@ class SQLiteTaskStore(TaskStore):
         return ret[0][0]
 
     def count_up_if_could(self, func_name: str, max_concurrency: int) -> bool:
-        """
-        Count Up if func can run
-        """
         conn = self._get_db()
         cur = conn.cursor()
 
@@ -266,18 +262,19 @@ class SQLiteTaskStore(TaskStore):
 def task_store_factory(
         settings: TaskStoreSettings,
         refresh_db: bool = True) -> TaskStore:
-    """A Factory of TaskStore
+    """A Factory of TaskStore.
 
     Generate an Instance of TaskStore Implementation by TaskStoreSettings.
 
     Parameters
     ----------
-    settings : TaskStoreSettings
-    refresh_db : Clear DB on initialization.
-        This is set True when called first by Main Process.
-    ----------
-    """
+    settings
+        Settings for TaskStore
+    refresh_db
+        Clear DB on initialization
+        This is set True when called first by Main Process
 
+    """
     if settings.type == 'redis':
         return RedisTaskStore(
             host=settings.redis_host,
@@ -361,7 +358,7 @@ class TaskManager:
     def has_job(self, func_name: str) -> bool:
         return func_name in self._job_definitions
 
-    def get_status(self, task_id: str) -> Optional[Dict]:
+    def get_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         return self._task_store.get_status(task_id)
 
     def get_current_concurrency(self, func_name: str) -> int:

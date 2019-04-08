@@ -17,7 +17,7 @@ with open('README.rst', 'r') as f:
 
 setup(
     name='restful-functions',
-    version=__version__,  # NOQA
+    version=__version__,  # type: ignore  # NOQA
     description="A Server Module to Build RESTful APIs for Python Functions",
     long_description=readme,
     url='https://github.com/insight-technology/restful-functions',
