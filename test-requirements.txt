@@ -5,7 +5,6 @@ pydocstyle
 pytest
 pytest-cov
 pytest-runner
-redis
 requests
 tox
 

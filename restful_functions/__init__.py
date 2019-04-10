@@ -1,7 +1,7 @@
-from .job import ArgType, ArgDefinition
-from .server import FunctionServer
-from .task import TaskStoreSettings
 from ._meta import __version__
+from .modules.function import ArgType, ArgDefinition
+from .modules.task import TaskStoreSettings
+from .server import FunctionServer
 
 __all__ = [
     'ArgType',

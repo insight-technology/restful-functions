@@ -6,8 +6,6 @@ env:
 python:
   - 3.6
   - 3.7
-services:
-  - redis-server
 install: pip install -r test-requirements.txt
 script:
   - flake8 ./

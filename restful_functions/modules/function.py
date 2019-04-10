@@ -1,18 +1,14 @@
-from enum import Enum, auto
-from typing import Any, Callable, List, Optional
-
-from .logger import get_logger
-
-logger = get_logger(__name__)
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 
 class ArgType(Enum):
-    INTEGER = auto()
-    FLOAT = auto()
-    STRING = auto()
-    BOOLEAN = auto()
-    LIST = auto()
-    DICT = auto()
+    INTEGER = 'INTEGER'
+    FLOAT = 'FLOAT'
+    STRING = 'STRING'
+    BOOLEAN = 'BOOLEAN'
+    LIST = 'LIST'
+    DICT = 'DICT'
 
 
 class ArgValidateResult:
@@ -63,8 +59,7 @@ def validate_arg(
             return ArgValidateResult(True, value)
         else:
             raise NotImplementedError
-    except Exception as e:
-        logger.debug(e)
+    except Exception:
         return ArgValidateResult(False, None)
 
 
@@ -82,42 +77,52 @@ class ArgDefinition:
         self.is_required = is_required
         self.description = description
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'name': self.name,
+            'type': self.type.name,
+            'is_required': self.is_required,
+            'description': self.description,
+        }
 
-class JobDefinition:
+
+class FunctionDefinition:
     __slots__ = [
         'func',
-        'max_concurrency',
         'arg_definitions',
-        'endpoint',
+        'max_concurrency',
         'description',
     ]
 
     def __init__(
             self,
             func: Callable,
-            max_concurrency: int,
             arg_definitions: List[ArgDefinition],
-            endpoint: str,
+            max_concurrency: int,
             description: str):
         """.
 
         Parameters
         ----------
-        func : function
-        max_concurrency : Max Concurrency
-        arg_definitions : A List of ArgDefinitions
-        endpoint : API Endpoint Name
-        description : A Description for this job.
+        func
+            Python Function that has "name" attribute.
+        arg_definitions
+            A List of ArgDefinitions
+        max_concurrency
+            Max Concurrency
+        description
+            A Description for this Function.
 
         """
         self.func = func
-        self.max_concurrency = max_concurrency
         self.arg_definitions = arg_definitions
-        self.endpoint = endpoint
+        self.max_concurrency = max_concurrency
         self.description = description
 
-
-class JobState:
-    RUNNING = 'RUNNING'
-    FAILED = 'FAILED'
-    DONE = 'DONE'
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'name': self.func.__name__,
+            'arg_definitions': [elm.to_dict() for elm in self.arg_definitions],
+            'max_concurrency': self.max_concurrency,
+            'description': self.description
+        }
