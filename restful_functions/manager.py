@@ -106,7 +106,7 @@ class FunctionManager:
         task_id = str(uuid4())
         jobnized_func = self._job_decorator(func_def.func, task_id)
 
-        if self._task_store.get_current_count(func_name) >= func_def.max_concurrency:
+        if func_def.max_concurrency != 0 and self._task_store.get_current_count(func_name) >= func_def.max_concurrency:
             return TryForkResult(
                 False,
                 f'Over Max Concurrency {func_def.max_concurrency}',
