@@ -6,12 +6,15 @@ from typing import Any, Callable, Dict, List, Optional
 
 from sanic import Sanic, request, response
 
-from .job import ArgDefinition, JobDefinition, JobState, validate_arg
-from .logger import get_logger
-from .task import TaskManager, TaskStoreSettings
+from .manager import FunctionManager
+from .modules.function import ArgDefinition, validate_arg
+from .modules.task import TaskStoreSettings
+from .utils.logger import get_logger
 
 
 class FunctionServer:
+    MAIN_PROCESS_ID = os.getpid()  # Don't rewrite.
+
     def __init__(
             self,
             shutdown_mode: str,
@@ -43,7 +46,7 @@ class FunctionServer:
         debug
             Is Debug Mode or Not. (the default is False)
         register_sys_signals
-            Registering Custom Signal Hanlders for SIG_TERM and SIG_INT. (the default is True)
+            Registering restful-functions' Custom Signal Handler for SIG_TERM and SIG_INT. (the default is True)
         task_store_settings
             TaskStoreSettings. (the default is TaskStoreSettings(), which uses SQLite.)
 
@@ -62,6 +65,9 @@ class FunctionServer:
         if polling_interval <= 0.0:
             raise ValueError('"polling_interval" should be greater than 0.0')
 
+        self._funcname_endpoint_dict: Dict[str, str] = {}
+        self._function_manager = FunctionManager(task_store_settings, debug)
+
         self._app = Sanic()
 
         self._port = port
@@ -71,13 +77,9 @@ class FunctionServer:
 
         self._polling_interval = polling_interval
 
-        self._task_manager = TaskManager(task_store_settings)
-
         self._debug = debug
 
         self._shutdown_mode = shutdown_mode
-
-        self._main_process_id = os.getpid()
 
         self._register_sys_signals = register_sys_signals
 
@@ -93,18 +95,16 @@ class FunctionServer:
                     self.exit_with_terminate()
 
                 elif self._shutdown_mode == 'join':
-                    if self._main_process_id == os.getpid():
+                    if FunctionServer.MAIN_PROCESS_ID == os.getpid():
                         print('Joining Processes now.')
                         print('Press Ctrl+C again to force exit.')
                     signal.signal(signal.SIGINT, lambda _, __: self.exit_with_terminate())  # NOQA
-                    signal.signal(signal.SIGTERM, lambda _, __: self.exit_with_terminate())  # NOQA
                     self.exit_with_join()
 
                 else:
                     raise ValueError
 
             signal.signal(signal.SIGINT, sig_handler)
-            signal.signal(signal.SIGTERM, sig_handler)
 
         self._app.run(
             host='0.0.0.0',
@@ -114,61 +114,92 @@ class FunctionServer:
 
     def _construct_endpoints(self):
         """Splited to Unit Test with no server running."""
+        # Functions
         @self._app.route('/api/list/data')
         async def get_api_list_data(request: request.Request):
-            return response.json(self._task_manager.entrypoints)
+            entrypoints = [self._funcname_endpoint_dict[name] for name in self._funcname_endpoint_dict]
+            return response.json(entrypoints)
 
         @self._app.route('/api/list/text')
-        async def get_api_lisT_text(request: request.Request):
-            return response.text(self._task_manager.job_list_text)
+        async def get_api_list_text(request: request.Request):
+            function_definitions = self._function_manager.definitions
 
-        @self._app.post('/api/max_concurrency')
-        async def post_api_max_concurrency(request: request.Request):
-            data = request.json
+            rows = []
+            for name in function_definitions:
+                elm = function_definitions[name]
+                endpoint_name = self._funcname_endpoint_dict[name]
 
-            if data is None:
-                return response.json(
-                        {'error': f'Parameter Missing'},
-                        400
-                    )
+                rows.append(name)
+                rows.append('  URL:')
+                rows.append(f'    async api: /call/{endpoint_name}')
+                rows.append(f'    block api: /call/blocking/{endpoint_name}')
+                rows.append(f'  Max Concurrency: {elm.max_concurrency}')
+                rows.append('  Description:')
+                rows.append(f'        {elm.description}')
+                if len(elm.arg_definitions) == 0:
+                    rows.append('  No Args')
+                else:
+                    rows.append('  Args')
+                    for arg in elm.arg_definitions:
+                        rows.append(f'    {arg.name} {arg.type.name} {"Requiered" if arg.is_required else "NOT-Required"}')  # NOQA
+                        if arg.description != '':
+                            rows.append(f'      {arg.description}')
+                rows.append('\n')
 
-            func_name = data['func_name']
-            value = data['value']
+            return response.text('\n'.join(rows))
 
-            self._task_manager.update_max_concurrency(func_name, value)
+        # function
+        @self._app.route('/api/function/definition/<func_name>')
+        async def get_api_max_concurrency(request: request.Request, func_name: str):
+            if func_name not in self._function_manager.definitions:
+                return response.json({}, 404)
+            return response.json(self._function_manager.definitions[func_name].to_dict())
 
-            return response.json({})
+        @self._app.route('/api/function/running_count/<func_name>')
+        async def get_api_current_concurrency(request: request.Request, func_name: str):
+            ret = self._function_manager.get_current_number_of_execution(func_name)
+            if ret is None:
+                return response.json({}, 404)
+            return response.json(ret, 200)
 
-        @self._app.route('/api/max_concurrency/<func_name>')
-        async def get_api_max_concurrency(request: request.Request,
-                                          func_name: str):
-            return response.json(
-                self._task_manager.get_max_concurrency(func_name))
-
-        @self._app.route('/api/current_concurrency/<func_name>')
-        async def get_api_current_concurrency(request: request.Request,
-                                              func_name: str):
-            return response.json(
-                self._task_manager.get_current_concurrency(func_name))
-
-        @self._app.route('/task/status/<task_id>')
-        async def get_task_status(request: request.Request, task_id: str):
-            return response.json(
-                self._task_manager.get_status(task_id))
+        # Tasks
+        @self._app.route('/task/info/<task_id>')
+        async def get_task_info(request: request.Request, task_id: str):
+            task_info = self._function_manager.get_task_info(task_id)
+            if task_info is None:
+                return response.json({}, 404)
+            return response.json(task_info.to_dict())
 
         @self._app.route('/task/done/<task_id>')
         async def get_task_done(request: request.Request, task_id: str):
-            status = self._task_manager.get_status(task_id)
-            if status is None:
+            task_info = self._function_manager.get_task_info(task_id)
+            if task_info is None:
                 return response.json({}, 404)
-            return response.json(status['status'] != JobState.RUNNING)
+            return response.json(task_info.is_done())
 
         @self._app.route('/task/result/<task_id>')
         async def get_task_result(request: request.Request, task_id: str):
-            status = self._task_manager.get_status(task_id)
-            if status is None:
+            task_info = self._function_manager.get_task_info(task_id)
+            if task_info is None:
                 return response.json({}, 404)
-            return response.json(status['result'])
+            return response.json(task_info.result)
+
+        @self._app.route('/task/list/<func_name>')
+        async def get_list_tasks(request: request.Request, func_name: str):
+            tasks = self._function_manager.list_task_info(func_name)
+            if tasks is None:
+                return response.json({}, 404)
+            return response.json([elm.to_dict() for elm in tasks])
+
+        @self._app.post('/terminate/function/<func_name>')
+        async def post_terminate_function(request: request.Request, func_name: str):
+            self._function_manager.terminate_function(func_name)
+            return response.json({}, 200)
+
+        @self._app.post('/terminate/task/<task_id>')
+        async def post_terminate_task(request: request.Request, task_id: str):
+            self._function_manager.terminate_task(task_id)
+            return response.json({}, 200)
 
     def _generate_func_args(
             self,
@@ -217,19 +248,19 @@ class FunctionServer:
 
     def exit_with_terminate(self):
         """Kill the processes forked by FunctionServer."""
-        if self._main_process_id == os.getpid():
-            self._task_manager.terminate_processes()
+        if FunctionServer.MAIN_PROCESS_ID == os.getpid():
+            self._function_manager.terminate_processes()
             get_event_loop().stop()
         else:
             sys.exit(0)
 
     def exit_with_join(self):
         """Wait all the processes finish."""
-        if self._main_process_id == os.getpid():
-            self._task_manager.join_processes()
+        if FunctionServer.MAIN_PROCESS_ID == os.getpid():
+            self._function_manager.join_processes()
             get_event_loop().stop()
 
-    def add_job(
+    def add_function(
             self,
             func: Callable,
             arg_definitions: List[ArgDefinition],
@@ -261,25 +292,20 @@ class FunctionServer:
         if max_concurrency < 0:
             raise ValueError
 
-        func_name = func.__name__
-
-        if self._task_manager.has_job(func_name):
-            self._logger.info(f'Duplicate Registration: {func_name}')
+        self._function_manager.add_function(
+            func,
+            arg_definitions,
+            max_concurrency,
+            description
+        )
 
         if endpoint_name is None:
-            endpoint_name = func_name
+            endpoint_name = func.__name__
+
+        self._funcname_endpoint_dict[func.__name__] = endpoint_name
 
         api_endpoint = f'/call/{endpoint_name}'
         api_blocking_endpoint = f'/call/blocking/{endpoint_name}'
-
-        self._task_manager.add_job(
-            JobDefinition(
-                func=func,
-                max_concurrency=max_concurrency,
-                arg_definitions=arg_definitions,
-                endpoint=endpoint_name,
-                description=description,
-            ))
 
         @self._app.post(api_endpoint)
         async def post_task_function(request: request.Request):
@@ -293,12 +319,12 @@ class FunctionServer:
                 self._logger.info(e)
                 return response.json({'error': str(e)}, 500)
 
-            result = self._task_manager.fork_process(func_name, func_args)
+            result = self._function_manager.launch_function(func.__name__, func_args)
             return response.json(result.to_dict())
 
         @self._app.post(api_blocking_endpoint)
         async def post_task_blocking_function(request: request.Request):
-            self._logger.info(f'Task Requested : Endpoint {api_blocking_endpoint} : Payload {request.json}')  # NOQA
+            self._logger.info(f'Task Requested : Endpoint {api_blocking_endpoint} : Payload {request.json}')
 
             try:
                 func_args = self._generate_func_args(
@@ -308,22 +334,25 @@ class FunctionServer:
                 self._logger.info(e)
                 return response.json({'error': str(e)}, 500)
 
-            result = self._task_manager.fork_process(func_name, func_args)
-            if not result.successed:
+            result = self._function_manager.launch_function(func.__name__, func_args)
+
+            if not result.success:
                 return response.json(result.to_dict())
 
-            self._logger.info(f'Start Polling : task_id {result.task_id}')
+            self._logger.info(f'Start Polling, func: {func.__name__}, task_id: {result.task_id}')
 
-            status = None
+            task_info = None
             while True:
-                await sleep(self._polling_interval)
+                task_info = self._function_manager.get_task_info(result.task_id)
 
-                status = self._task_manager.get_status(result.task_id)
-                if status is None:
-                    continue
-                if status['status'] != JobState.RUNNING:
+                if task_info is None:
+                    return response.json({'message': 'Something Unexpected.'}, 500)
+
+                if task_info.is_done():
                     break
 
-            return response.json(status['result'])
+                await sleep(self._polling_interval)
+
+            return response.json(task_info.result)
 
         self._logger.debug(f'Added: {api_endpoint}')

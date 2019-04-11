@@ -10,7 +10,7 @@ def addition(x: int, y: int):
 
 if __name__ == '__main__':
     server = FunctionServer('join')
-    server.add_job(
+    server.add_function(
         addition,  # Function
         [
             ArgDefinition('x', ArgType.INTEGER, True, 'x'),

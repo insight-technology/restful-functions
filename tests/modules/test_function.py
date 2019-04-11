@@ -1,8 +1,7 @@
 from typing import Any, List
 
 import pytest
-
-from restful_functions.job import ArgType, validate_arg
+from restful_functions.modules.function import ArgType, validate_arg
 
 
 @pytest.mark.parametrize('arg_type,expected_list', [
