@@ -1,3 +1,5 @@
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Finsight-technology%2Frestful-functions.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Finsight-technology%2Frestful-functions?ref=badge_shield)
+
 restful-functions
 =================
 
@@ -145,3 +147,7 @@ TODO
 [ ] Show Test Coverage
 
 [ ] Deploy with CI Service
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Finsight-technology%2Frestful-functions.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Finsight-technology%2Frestful-functions?ref=badge_large)
