@@ -1,0 +1,13 @@
+version: "3.7"
+
+services:
+
+  dev:
+    build: .
+    environment:
+      COMPOSE_CONVERT_WINDOWS_PATHS: 1
+    volumes:
+      - .:/app/
+    ports:
+      - 8000:8000
+    command: tail -f /dev/null
