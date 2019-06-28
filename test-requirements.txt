@@ -1,4 +1,3 @@
-aiohttp
 flake8
 mypy
 pydocstyle
