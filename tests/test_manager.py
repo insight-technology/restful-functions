@@ -15,6 +15,8 @@ from restful_functions.modules.task import TaskStoreSettings
 def test_task_manager(settings: TaskStoreSettings):
     manager = FunctionManager(settings)
 
+    raise RuntimeError()
+
     def TEST_FUNC(x: int, y: int):
         return x + y
 
