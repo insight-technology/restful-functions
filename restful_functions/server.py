@@ -83,7 +83,7 @@ class FunctionServer:
 
         self._register_sys_signals = register_sys_signals
 
-        self._logger = get_logger(self.__class__.__name__, debug)
+        self._logger = get_logger(self.__class__.__name__, debug=debug)
 
     def start(self):
         """Start FunctionServer Process."""
