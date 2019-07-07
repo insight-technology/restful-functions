@@ -40,7 +40,7 @@ class FunctionManager:
         self._process_manager = ProcessManager()
         self._task_store = task_store_factory(task_store_settings, True, logger=get_logger('TaskStore'))
 
-        self._logger = get_logger(self.__class__.__name__, debug)
+        self._logger = get_logger(self.__class__.__name__, debug=debug)
 
     @property
     def definitions(self):
