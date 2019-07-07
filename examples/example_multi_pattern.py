@@ -1,7 +1,16 @@
 import concurrent.futures
 import math
 import os
+import sys
 import time
+
+# for develpment
+try:
+    import restful_functions  # NOQA
+except Exception:
+    print('using local version')
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# ------------ #
 
 from restful_functions import ArgDefinition, ArgType, FunctionServer
 
