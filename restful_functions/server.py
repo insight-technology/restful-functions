@@ -98,7 +98,7 @@ class FunctionServer:
                     if FunctionServer.MAIN_PROCESS_ID == os.getpid():
                         print('Joining Processes now.')
                         print('Press Ctrl+C again to force exit.')
-                    signal.signal(signal.SIGINT, lambda _, __: self.exit_with_terminate())  # NOQA
+                    signal.signal(signal.SIGINT, lambda _, __: self.exit_with_terminate())
                     self.exit_with_join()
 
                 else:
@@ -110,7 +110,8 @@ class FunctionServer:
             host='0.0.0.0',
             port=self._port,
             workers=1,
-            register_sys_signals=False)
+            register_sys_signals=False,
+            access_log=False)
 
     def _construct_endpoints(self):
         """Splited to Unit Test with no server running."""
@@ -141,7 +142,7 @@ class FunctionServer:
                 else:
                     rows.append('  Args')
                     for arg in elm.arg_definitions:
-                        rows.append(f'    {arg.name} {arg.type.name} {"Requiered" if arg.is_required else "NOT-Required"}')  # NOQA
+                        rows.append(f'    {arg.name} {arg.type.name} {"Requiered" if arg.is_required else "NOT-Required"}')
                         if arg.description != '':
                             rows.append(f'      {arg.description}')
                 rows.append('\n')
@@ -228,9 +229,6 @@ class FunctionServer:
         if data is None:
             data = {}
 
-        if len(data) < sum([elm.is_required for elm in arg_definitions]):
-            raise ValueError('Parameter Missing')
-
         func_args = {}
 
         for arg_def in arg_definitions:
@@ -238,7 +236,7 @@ class FunctionServer:
                 raw = data[arg_def.name]
                 validated = validate_arg(raw, arg_def.type)
                 if not validated.is_ok:
-                    raise ValueError(f'num_required_argsParameter is Invalid: {arg_def.name} {raw} {arg_def.type.name}')  # NOQA
+                    raise ValueError(f'Parameter is Invalid: {arg_def.name} {raw} {arg_def.type.name}')
                 func_args[arg_def.name] = validated.value
 
             elif arg_def.is_required:
@@ -309,7 +307,7 @@ class FunctionServer:
 
         @self._app.post(api_endpoint)
         async def post_task_function(request: request.Request):
-            self._logger.info(f'Task Requested : Endpoint {api_endpoint} : Payload {request.json}')  # NOQA
+            self._logger.info(f'Task Requested : Endpoint {api_endpoint} : Payload {request.json}')
 
             try:
                 func_args = self._generate_func_args(
