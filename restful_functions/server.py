@@ -1,10 +1,10 @@
+import asyncio
 import os
 import signal
 import sys
-from asyncio import get_event_loop, sleep
 from typing import Any, Callable, Dict, List, Optional
 
-from sanic import Sanic, request, response
+from aiohttp import web
 
 from .manager import FunctionManager
 from .modules.function import ArgDefinition, validate_arg
@@ -17,13 +17,16 @@ class FunctionServer:
 
     def __init__(
             self,
-            shutdown_mode: str,
+            *,
+            shutdown_mode: str = 'join',
+            host: str = '0.0.0.0',
             port: int = 8888,
             timeout: int = 60*60*24,
             polling_interval: float = 1.0,
             debug: bool = False,
             register_sys_signals: bool = True,
-            task_store_settings: TaskStoreSettings = TaskStoreSettings()):
+            task_store_settings: TaskStoreSettings = TaskStoreSettings(),
+            loop: asyncio.events.AbstractEventLoop = asyncio.get_event_loop()):
         """Setup FunctionServer.
 
         Parameters
@@ -33,6 +36,8 @@ class FunctionServer:
             Acceptable Options are 'join' and 'terminate'.
             'join' is waiting until the processes finished.
             'terminate' is killing the processes immediately.
+        host
+            RESTful APIs host. (the default is '0.0.0.0')
         port
             RESTful APIs port. (the default is 8888)
         timeout
@@ -49,6 +54,8 @@ class FunctionServer:
             Registering restful-functions' Custom Signal Handler for SIG_TERM and SIG_INT. (the default is True)
         task_store_settings
             TaskStoreSettings. (the default is TaskStoreSettings(), which uses SQLite.)
+        loop
+            asyncio event loop.
 
         Raises
         ------
@@ -68,12 +75,13 @@ class FunctionServer:
         self._funcname_endpoint_dict: Dict[str, str] = {}
         self._function_manager = FunctionManager(task_store_settings, debug)
 
-        self._app = Sanic()
+        self._app = web.Application(
+            middlewares=(web.normalize_path_middleware(append_slash=False, remove_slash=True),)
+        )
+        self._runner = web.AppRunner(self._app, handle_signals=False)
 
+        self._host = host
         self._port = port
-
-        self._app.config.REQUEST_TIMEOUT = timeout
-        self._app.config.RESPONSE_TIMEOUT = timeout
 
         self._polling_interval = polling_interval
 
@@ -82,6 +90,8 @@ class FunctionServer:
         self._shutdown_mode = shutdown_mode
 
         self._register_sys_signals = register_sys_signals
+
+        self._loop = loop
 
         self._logger = get_logger(self.__class__.__name__, debug=debug)
 
@@ -98,6 +108,7 @@ class FunctionServer:
                     if FunctionServer.MAIN_PROCESS_ID == os.getpid():
                         print('Joining Processes now.')
                         print('Press Ctrl+C again to force exit.')
+
                     signal.signal(signal.SIGINT, lambda _, __: self.exit_with_terminate())
                     self.exit_with_join()
 
@@ -106,23 +117,28 @@ class FunctionServer:
 
             signal.signal(signal.SIGINT, sig_handler)
 
-        self._app.run(
-            host='0.0.0.0',
-            port=self._port,
-            workers=1,
-            register_sys_signals=False,
-            access_log=False)
+        async def server_coro():
+            await self._runner.setup()
+
+            site = web.TCPSite(self._runner, host=self._host, port=self._port)
+
+            await site.start()
+
+            self._logger.info(f'Start Server {self._host}:{self._port}')
+
+            while True:
+                await asyncio.sleep(3600)
+
+        self._loop.run_until_complete(server_coro())
 
     def _construct_endpoints(self):
         """Splited to Unit Test with no server running."""
         # Functions
-        @self._app.route('/api/list/data')
-        async def get_api_list_data(request: request.Request):
+        async def get_function_list_data(request: web.Request):
             entrypoints = [self._funcname_endpoint_dict[name] for name in self._funcname_endpoint_dict]
-            return response.json(entrypoints)
+            return web.json_response(entrypoints)
 
-        @self._app.route('/api/list/text')
-        async def get_api_list_text(request: request.Request):
+        async def get_function_list_text(request: web.Request):
             function_definitions = self._function_manager.definitions
 
             rows = []
@@ -132,8 +148,8 @@ class FunctionServer:
 
                 rows.append(name)
                 rows.append('  URL:')
-                rows.append(f'    async api: /call/{endpoint_name}')
-                rows.append(f'    block api: /call/blocking/{endpoint_name}')
+                rows.append(f'    async api: /{endpoint_name}')
+                rows.append(f'    block api: /{endpoint_name}/keep-connection')
                 rows.append(f'  Max Concurrency: {elm.max_concurrency}')
                 rows.append('  Description:')
                 rows.append(f'        {elm.description}')
@@ -147,60 +163,110 @@ class FunctionServer:
                             rows.append(f'      {arg.description}')
                 rows.append('\n')
 
-            return response.text('\n'.join(rows))
+            return web.Response(text='\n'.join(rows))
 
         # function
-        @self._app.route('/api/function/definition/<func_name>')
-        async def get_api_max_concurrency(request: request.Request, func_name: str):
-            if func_name not in self._function_manager.definitions:
-                return response.json({}, 404)
-            return response.json(self._function_manager.definitions[func_name].to_dict())
+        async def get_function_definition(request: web.Request):
+            func_name = request.match_info['func_name']
 
-        @self._app.route('/api/function/running_count/<func_name>')
-        async def get_api_current_concurrency(request: request.Request, func_name: str):
+            if func_name not in self._function_manager.definitions:
+                raise web.HTTPNotFound()
+
+            return web.json_response(self._function_manager.definitions[func_name].to_dict())
+
+        async def get_function_running_count(request: web.Request):
+            func_name = request.match_info['func_name']
+
             ret = self._function_manager.get_current_number_of_execution(func_name)
             if ret is None:
-                return response.json({}, 404)
-            return response.json(ret, 200)
+                raise web.HTTPNotFound()
+
+            return web.json_response(ret)
 
         # Tasks
-        @self._app.route('/task/info/<task_id>')
-        async def get_task_info(request: request.Request, task_id: str):
+        async def get_task_info(request: web.Request):
+            if 'task_id' not in request.match_info:
+                raise web.HTTPBadRequest()
+
+            task_id = request.match_info['task_id']
+
             task_info = self._function_manager.get_task_info(task_id)
             if task_info is None:
-                return response.json({}, 404)
-            return response.json(task_info.to_dict())
+                raise web.HTTPNotFound()
 
-        @self._app.route('/task/done/<task_id>')
-        async def get_task_done(request: request.Request, task_id: str):
+            return web.json_response(task_info.to_dict())
+
+        async def get_task_done(request: web.Request):
+            if 'task_id' not in request.match_info:
+                raise web.HTTPBadRequest()
+
+            task_id = request.match_info['task_id']
+
             task_info = self._function_manager.get_task_info(task_id)
             if task_info is None:
-                return response.json({}, 404)
-            return response.json(task_info.is_done())
+                raise web.HTTPNotFound()
 
-        @self._app.route('/task/result/<task_id>')
-        async def get_task_result(request: request.Request, task_id: str):
+            return web.json_response(task_info.is_done())
+
+        async def get_task_result(request: web.Request):
+            if 'task_id' not in request.match_info:
+                raise web.HTTPBadRequest()
+
+            task_id = request.match_info['task_id']
+
             task_info = self._function_manager.get_task_info(task_id)
             if task_info is None:
-                return response.json({}, 404)
-            return response.json(task_info.result)
+                raise web.HTTPNotFound()
+            return web.json_response(task_info.result)
 
-        @self._app.route('/task/list/<func_name>')
-        async def get_list_tasks(request: request.Request, func_name: str):
+        async def get_task_list(request: web.Request):
+            if 'func_name' not in request.match_info:
+                raise web.HTTPBadRequest()
+
+            func_name = request.match_info['func_name']
+
             tasks = self._function_manager.list_task_info(func_name)
             if tasks is None:
-                return response.json({}, 404)
-            return response.json([elm.to_dict() for elm in tasks])
+                raise web.HTTPNotFound()
 
-        @self._app.post('/terminate/function/<func_name>')
-        async def post_terminate_function(request: request.Request, func_name: str):
+            return web.json_response([elm.to_dict() for elm in tasks])
+
+        # Termination
+        async def post_terminate_function(request: web.Request):
+            if 'func_name' not in request.match_info:
+                raise web.HTTPBadRequest()
+
+            func_name = request.match_info['func_name']
+
             self._function_manager.terminate_function(func_name)
-            return response.json({}, 200)
+            return web.json_response({})
 
-        @self._app.post('/terminate/task/<task_id>')
-        async def post_terminate_task(request: request.Request, task_id: str):
+        async def post_terminate_task(request: web.Request, task_id: str):
+            if 'task_id' not in request.match_info:
+                raise web.HTTPBadRequest()
+
+            task_id = request.match_info['task_id']
             self._function_manager.terminate_task(task_id)
-            return response.json({}, 200)
+
+            return web.json_response({})
+
+        api_list = [
+            web.get('/function/list/data', get_function_list_data),
+            web.get('/function/list/text', get_function_list_text),
+            web.get(r'/function/definition/{func_name}', get_function_definition),
+            web.get(r'/function/running_count/{func_name}', get_function_running_count),
+            web.get(r'/task/info/{task_id}', get_task_info),
+            web.get(r'/task/done/{task_id}', get_task_done),
+            web.get(r'/task/result/{task_id}', get_task_result),
+            web.get(r'/task/list/{func_name}', get_task_list),
+            web.post(r'/terminate/function/{func_name}', post_terminate_function),
+            web.post(r'/terminate/task/{task_id}', post_terminate_task),
+        ]
+
+        async def index(request: web.Request):
+            return web.Response(text='\n'.join([elm.path for elm in api_list])+'\n')
+
+        self._app.add_routes([*api_list, web.get('/', index)])
 
     def _generate_func_args(
             self,
@@ -244,19 +310,22 @@ class FunctionServer:
 
         return func_args
 
+    def _exit_event_loop(self):
+        self._loop.call_soon(lambda: asyncio.ensure_future(self._runner.cleanup()))
+        self._loop.stop()
+
     def exit_with_terminate(self):
         """Kill the processes forked by FunctionServer."""
         if FunctionServer.MAIN_PROCESS_ID == os.getpid():
             self._function_manager.terminate_processes()
-            get_event_loop().stop()
-        else:
-            sys.exit(0)
+            self._exit_event_loop()
 
     def exit_with_join(self):
         """Wait all the processes finish."""
         if FunctionServer.MAIN_PROCESS_ID == os.getpid():
             self._function_manager.join_processes()
-            get_event_loop().stop()
+            self._exit_event_loop()
+            sys.exit(0)
 
     def add_function(
             self,
@@ -302,40 +371,44 @@ class FunctionServer:
 
         self._funcname_endpoint_dict[func.__name__] = endpoint_name
 
-        api_endpoint = f'/call/{endpoint_name}'
-        api_blocking_endpoint = f'/call/blocking/{endpoint_name}'
+        api_async_endpoint = f'/{endpoint_name}'
+        api_sync_endpoint = f'/{endpoint_name}/keep-connection'
 
-        @self._app.post(api_endpoint)
-        async def post_task_function(request: request.Request):
-            self._logger.info(f'Task Requested : Endpoint {api_endpoint} : Payload {request.json}')
+        async def post_async_function(request: web.Request):
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+
+            self._logger.info(f'Task Requested : Endpoint {api_async_endpoint} : Payload {data}')
 
             try:
-                func_args = self._generate_func_args(
-                    arg_definitions,
-                    request.json)
+                func_args = self._generate_func_args(arg_definitions, data)
             except ValueError as e:
                 self._logger.info(e)
-                return response.json({'error': str(e)}, 500)
+                return web.json_response({'error': str(e)}, status=400)
 
             result = self._function_manager.launch_function(func.__name__, func_args)
-            return response.json(result.to_dict())
+            return web.json_response(result.to_dict())
 
-        @self._app.post(api_blocking_endpoint)
-        async def post_task_blocking_function(request: request.Request):
-            self._logger.info(f'Task Requested : Endpoint {api_blocking_endpoint} : Payload {request.json}')
+        async def post_sync_function(request: web.Request):
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+
+            self._logger.info(f'Task Requested : Endpoint {api_sync_endpoint} : Payload {data}')
 
             try:
-                func_args = self._generate_func_args(
-                    arg_definitions,
-                    request.json)
+                func_args = self._generate_func_args(arg_definitions, data)
             except ValueError as e:
                 self._logger.info(e)
-                return response.json({'error': str(e)}, 500)
+                return web.json_response({'error': str(e)}, status=400)
 
             result = self._function_manager.launch_function(func.__name__, func_args)
 
             if not result.success:
-                return response.json(result.to_dict())
+                return web.json_response(result.to_dict())
 
             self._logger.info(f'Start Polling, func: {func.__name__}, task_id: {result.task_id}')
 
@@ -344,13 +417,18 @@ class FunctionServer:
                 task_info = self._function_manager.get_task_info(result.task_id)
 
                 if task_info is None:
-                    return response.json({'message': 'Something Unexpected.'}, 500)
+                    return web.json_response({'message': 'Something Unexpected.'}, status=500)
 
                 if task_info.is_done():
                     break
 
-                await sleep(self._polling_interval)
+                await asyncio.sleep(self._polling_interval)
 
-            return response.json(task_info.result)
+            return web.json_response(task_info.result)
 
-        self._logger.debug(f'Added: {api_endpoint}')
+        self._app.add_routes([
+            web.post(api_async_endpoint, post_async_function),
+            web.post(api_sync_endpoint, post_sync_function),
+        ])
+
+        self._logger.debug(f'Added: {api_async_endpoint}')

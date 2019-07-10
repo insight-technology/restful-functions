@@ -3,8 +3,6 @@ restful-functions
 
 A Server Module to Build RESTful APIs for Python Fnctions.
 
-restful-functions uses `huge-success/sanic <https://github.com/huge-success/sanic>`_ that is FAST HTTP Server.
-
 This framework forks a new process to run the specified function on each api request.
 
 You can specify a maximum concurrency of the function. The api request is denied if the nubmer of running processes for the function is already reaches the concurrency limitation.
@@ -54,7 +52,7 @@ Example Code::
 
 
     if __name__ == '__main__':
-        server = FunctionServer('join')
+        server = FunctionServer()
         server.add_function(
             addition,  # Function
             [
@@ -74,58 +72,69 @@ Example Code::
 
 Example Usage::
 
-    $ curl localhost:8888/api/list/text
+    $ curl localhost:8888/
+    /function/list/data
+    /function/list/text
+    /function/definition/{func_name}
+    /function/running_count/{func_name}
+    /task/info/{task_id}
+    /task/done/{task_id}
+    /task/result/{task_id}
+    /task/list/{func_name}
+    /terminate/function/{func_name}
+    /terminate/task/{task_id}
+
+    $ curl localhost:8888/function/list/text
     addition
     URL:
-        async api: /call/addition
-        block api: /call/blocking/addition
+        async api: /addition
+        block api: /addition/keep-connection
     Max Concurrency: 1
     Description:
-        Simple Awesome Addition
+            Simple Awesome Addition
     Args
         x INTEGER Requiered
-          A value of X
+        A value of X
         y INTEGER Requiered
-          A value of Y
+        A value of Y
 
 
     multi
     URL:
-        async api: /call/multi
-        block api: /call/blocking/multi
+        async api: /multi
+        block api: /multi/keep-connection
     Max Concurrency: 2
     Description:
-        Heavy Function
+            Heavy Function
     No Args
 
 
     # Call Asynchronous
     # Obtain task_id
-    $ curl -X POST -H "Content-Type: applicaiton/json" -d '{"x":3, "y":6}' http://localhost:8888/call/addition
-    {"success":true,"message":"","task_id":"3e4ad7cf-fc9a-41ca-8461-d9f344e9657d"}
+    $ curl -X POST -H "Content-Type: applicaiton/json" -d '{"x":3, "y":6}' http://localhost:8888/addition
+    {"success": true, "message": "", "task_id": "c3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa"}
 
     # Obtain the result by task_id
-    $ curl http://localhost:8888/task/info/7a924f27-0f89-46a8-9ba7-76f0463b5ad4
-    {"task_id":"3e4ad7cf-fc9a-41ca-8461-d9f344e9657d","function_name":"addition","status":"DONE","result":9}
+    $ curl http://localhost:8888/task/info/3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa
+    {"task_id": "c3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa", "function_name": "addition", "status": "DONE", "result": 9}
 
-    $ curl http://localhost:8888/task/result/7a924f27-0f89-46a8-9ba7-76f0463b5ad4
+    $ curl http://localhost:8888/task/result/c3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa
     9
 
     # Call synchronous
     # Keeping the connection until the process ends.
-    $ curl -X POST -H "Content-Type: applicaiton/json" -d '{"x":3, "y":6}' http://localhost:8888/call/blocking/addition
+    $ curl -X POST -H "Content-Type: applicaiton/json" -d '{"x":3, "y":6}' http://localhost:8888/addition/keep-connection
     9
 
     # Over Max Concurrency
-    $ curl -X POST http://localhost:8888/call/multi
-    {"success":true,"message":"","task_id":"e7cd82dd-3cb3-4ada-9231-cb3522902757"}
+    $ curl -X POST http://localhost:8888/multi
+    {"success": true, "message": "", "task_id": "5bbbc1a0-74c2-4828-a843-fa2e2363e341"}
 
-    $ curl -X POST http://localhost:8888/call/multi
-    {"success":true,"message":"","task_id":"d853197e-0179-4a64-9e00-fc10d3257995"}
+    $ curl -X POST http://localhost:8888/multi
+    {"success": true, "message": "", "task_id": "7729af1f-c766-456e-a516-a75ab5f3a24c"}
 
-    $ curl -X POST http://localhost:8888/call/multi
-    {"success":false,"message":"Over Max Concurrency 2","task_id":""}
-
+    $ curl -X POST http://localhost:8888/multi
+    {"success": false, "message": "Over Max Concurrency 2", "task_id": ""}
 
 
 LICENSE
@@ -136,11 +145,7 @@ TODO
 ----
 [ ] Write Documents
 
-[ ] Comments on Code
-
 [ ] Write CONTRIBUTING.md
-
-[ ] Test with Tox
 
 [ ] Show Test Coverage
 

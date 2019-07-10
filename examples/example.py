@@ -19,7 +19,7 @@ def addition(x: int, y: int):
 
 
 if __name__ == '__main__':
-    server = FunctionServer('join', debug=True)
+    server = FunctionServer(debug=True)
     server.add_function(
         addition,  # Function
         [

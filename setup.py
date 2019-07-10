@@ -31,7 +31,7 @@ setup(
     extras_require={'dev': dev_requires, 'test': test_requires},
     python_requires='>=3.6',
     zip_safe=False,
-    classifiers=(
+    classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
@@ -41,5 +41,5 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules',
-    ),
+    ],
 )
