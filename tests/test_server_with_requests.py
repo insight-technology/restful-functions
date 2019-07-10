@@ -27,7 +27,7 @@ def sleep_function_server_process():
     tss = TaskStoreSettings()
     tss.sqlite_dsn = os.path.join(gettempdir(), 'sleep_function_server_process.db')
 
-    server = FunctionServer('terminate', register_sys_signals=True, task_store_settings=tss)
+    server = FunctionServer(shutdown_mode='terminate', register_sys_signals=True, task_store_settings=tss)
     server.add_function(sleep_func, [ArgDefinition('t', ArgType.INTEGER, True, 'Sleep Time')], 10)
 
     def terminate(sig, handler):
@@ -54,12 +54,12 @@ def test_launch_function():
                 continue
             break
 
-        res = get_request('/api/function/running_count/sleep_func')
+        res = get_request('/function/running_count/sleep_func')
         assert res.status_code == 200
         assert res.json() == 0
 
         for i in range(10):
-            res = post_request('/call/sleep_func', json.dumps({'t': 5}))
+            res = post_request('/sleep_func', json.dumps({'t': 5}))
             assert res.status_code == 200
             assert res.json()['success']
 
@@ -67,15 +67,15 @@ def test_launch_function():
             assert res.status_code == 200
             assert res.json()['status'] == 'RUNNING'
 
-            res = get_request('/api/function/running_count/sleep_func')
+            res = get_request('/function/running_count/sleep_func')
             assert res.status_code == 200
             assert res.json() == i+1
 
-        res = post_request('/call/sleep_func', json.dumps({'t': 5}))
+        res = post_request('/sleep_func', json.dumps({'t': 5}))
         assert res.status_code == 200
         assert not res.json()['success']
 
-        res = get_request('/api/function/running_count/sleep_func')
+        res = get_request('/function/running_count/sleep_func')
         assert res.status_code == 200
         assert res.json() == 10
 
@@ -97,7 +97,7 @@ def server_process_for_test_task_status():
     tss = TaskStoreSettings()
     tss.sqlite_dsn = os.path.join(gettempdir(), 'server_process_for_test_task_status.db')
 
-    server = FunctionServer('terminate', port=8889, task_store_settings=tss)
+    server = FunctionServer(shutdown_mode='terminate', port=8889, task_store_settings=tss)
     server.add_function(status_check_func, [], 1)
     server.add_function(status_check_func_fail, [], 1)
 
@@ -125,7 +125,7 @@ def test_task_status():
         break
 
     # Normal
-    res = post_request('/call/status_check_func', port=8889)
+    res = post_request('/status_check_func', port=8889)
     assert res.json()['success']
 
     task_id = res.json()['task_id']
@@ -139,7 +139,7 @@ def test_task_status():
     assert res.json()['result'] == 42
 
     # Abnormal
-    res = post_request('/call/status_check_func_fail', port=8889)
+    res = post_request('/status_check_func_fail', port=8889)
     assert res.json()['success']
 
     task_id = res.json()['task_id']
@@ -169,7 +169,7 @@ def test_task_status_simple_api():
             break
 
         # Normal
-        res = post_request('/call/status_check_func', port=8889)
+        res = post_request('/status_check_func', port=8889)
         assert res.json()['success']
 
         task_id = res.json()['task_id']
@@ -184,7 +184,7 @@ def test_task_status_simple_api():
         assert res.json() == 42
 
         # Abnormal
-        res = post_request('/call/status_check_func_fail', port=8889)
+        res = post_request('/status_check_func_fail', port=8889)
         assert res.json()['success']
 
         task_id = res.json()['task_id']

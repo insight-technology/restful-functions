@@ -4,5 +4,5 @@ pydocstyle
 pytest
 pytest-cov
 pytest-runner
+pytest-aiohttp
 requests
-tox

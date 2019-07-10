@@ -53,7 +53,8 @@ def multi():
 
 
 if __name__ == '__main__':
-    server = FunctionServer('join', debug=True)
+    server = FunctionServer(debug=True)
+
     server.add_function(
         awesome,
         [
@@ -62,8 +63,10 @@ if __name__ == '__main__':
             ArgDefinition('wait', ArgType.INTEGER, True, 'Waiting Seconds'),
         ],
         10,
-        '足し算')
+        'Simple Addition')
+
     server.add_function(no_arg_job, [], 1)
-    server.add_function(multi, [], 2, 'マルチプロセス')
+
+    server.add_function(multi, [], 2, 'Multi Process Function')
 
     server.start()

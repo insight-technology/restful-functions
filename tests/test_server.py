@@ -1,76 +1,92 @@
 from restful_functions import ArgDefinition, ArgType, FunctionServer
+from pytest_aiohttp import aiohttp_client
+import pytest
 
 
-def test_api_list_with_no_functions():
-    server = FunctionServer('terminate')
+@pytest.fixture
+async def test_api_list_with_no_functions():
+    server = FunctionServer(shutdown_mode='terminate')
 
     server._construct_endpoints()
 
-    req, res = server._app.test_client.get('/api/list/data')
+    client = await aiohttp_client(server._app)
+
+    res = await client.get('/function/list/data')
     assert res.status == 200
-    assert res.json == []
+    assert await res.json() == []
 
-    req, res = server._app.test_client.get('/api/list/text')
+    res = await client.get('/function/list/text')
     assert res.status == 200
-    assert res.text == ''
+    assert await res.text() == ''
 
 
-def test_api_list_with_functions():
+@pytest.fixture
+async def test_api_list_with_functions():
     def test1():
         pass
 
     def test2():
         pass
 
-    server = FunctionServer('terminate')
+    server = FunctionServer(shutdown_mode='terminate')
     server.add_function(test1, [], 1)
     server.add_function(test2, [], 1)
 
     server._construct_endpoints()
 
-    req, res = server._app.test_client.get('/api/list/data')
+    client = await aiohttp_client(server._app)
+
+    res = await client.get('/api/list/data')
     assert res.status == 200
-    assert res.json == ['test1', 'test2']
+    assert await res.json() == ['test1', 'test2']
 
-    req, res = server._app.test_client.get('/api/list/text')
+    res = await client.get('/api/list/text')
     assert res.status == 200
-    assert res.text != ''
+    assert await res.text() != ''
 
 
-def test_api_function_info():
+@pytest.fixture
+async def test_api_function_info():
     def test1():
         pass
 
     def test2():
         pass
 
-    server = FunctionServer('terminate')
+    server = FunctionServer(shutdown_mode='terminate')
     server.add_function(test1, [], 1)
     server.add_function(test2, [ArgDefinition('x', ArgType.INTEGER, True, 'value x')], 2)
 
     server._construct_endpoints()
 
-    req, res = server._app.test_client.get('/api/function/definition/test1')
-    assert res.status == 200
-    assert res.json['name'] == 'test1'
-    assert len(res.json['arg_definitions']) == 0
-    assert res.json['max_concurrency'] == 1
+    client = await aiohttp_client(server._app)
 
-    req, res = server._app.test_client.get('/api/function/definition/test2')
+    res = client.get('/api/function/definition/test1')
     assert res.status == 200
-    assert res.json['name'] == 'test2'
-    assert len(res.json['arg_definitions']) == 1
-    assert res.json['max_concurrency'] == 2
 
-    req, res = server._app.test_client.get('/api/function/running_count/test1')
+    data = await res.json()
+    assert data['name'] == 'test1'
+    assert len(data['arg_definitions']) == 0
+    assert data['max_concurrency'] == 1
+
+    res = await client.get('/api/function/definition/test2')
     assert res.status == 200
-    assert res.json == 0
 
-    req, res = server._app.test_client.get('/api/function/running_count/test2')
+    data = await res.json()
+    assert data['name'] == 'test2'
+    assert len(data['arg_definitions']) == 1
+    assert data['max_concurrency'] == 2
+
+    res = client.get('/api/function/running_count/test1')
     assert res.status == 200
-    assert res.json == 0
+    assert await res.json() == 0
 
-    req, res = server._app.test_client.get('/api/function/definition/test3')
+    res = client.get('/api/function/running_count/test2')
+    assert res.status == 200
+    assert await res.json() == 0
+
+    res = client.get('/api/function/definition/test3')
     assert res.status == 404
-    req, res = server._app.test_client.get('/api/function/running_count/test3')
+
+    res = client.get('/api/function/running_count/test3')
     assert res.status == 404
