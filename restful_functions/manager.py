@@ -1,3 +1,5 @@
+import functools
+import multiprocessing
 from typing import Any, Callable, Dict, List, Optional
 from uuid import uuid4
 
@@ -86,17 +88,18 @@ class FunctionManager:
             self,
             func: Callable,
             task_id: str) -> Callable:
+
+        @functools.wraps(func)
         def wrapper(job_args: Dict[str, Any]):
             try:
-                task_store = task_store_factory(self._task_store_settings, False, logger=self._logger)
+                logger = get_logger(task_id, logger_factory=multiprocessing.get_logger)
+                task_store = task_store_factory(self._task_store_settings, False, logger=logger)
                 ret = func(**job_args)
                 task_store.finish_task(task_id, ret)
             except Exception as e:
                 self._logger.debug(e)
                 if task_store:
                     task_store.finish_task(task_id, e)
-
-        wrapper.__name__ = func.__name__
 
         return wrapper
 
