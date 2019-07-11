@@ -76,7 +76,7 @@ Example Usage::
     /function/list/data
     /function/list/text
     /function/definition/{func_name}
-    /function/running_count/{func_name}
+    /function/running-count/{func_name}
     /task/info/{task_id}
     /task/done/{task_id}
     /task/result/{task_id}

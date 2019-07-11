@@ -254,7 +254,7 @@ class FunctionServer:
             web.get('/function/list/data', get_function_list_data),
             web.get('/function/list/text', get_function_list_text),
             web.get(r'/function/definition/{func_name}', get_function_definition),
-            web.get(r'/function/running_count/{func_name}', get_function_running_count),
+            web.get(r'/function/running-count/{func_name}', get_function_running_count),
             web.get(r'/task/info/{task_id}', get_task_info),
             web.get(r'/task/done/{task_id}', get_task_done),
             web.get(r'/task/result/{task_id}', get_task_result),

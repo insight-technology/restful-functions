@@ -1,5 +1,5 @@
 import logging
-from typing import Dict
+from typing import Callable, Dict
 
 __restful_functions_loggers: Dict[str, logging.Logger] = {}
 
@@ -11,6 +11,7 @@ __default_formatter = logging.Formatter(
 def get_logger(
         name: str,
         *,
+        logger_factory: Callable = logging.getLogger,
         formatter: logging.Formatter = __default_formatter,
         debug: bool = False) -> logging.Logger:
     global __restful_functions_loggers

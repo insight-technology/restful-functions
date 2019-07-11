@@ -54,7 +54,7 @@ def test_launch_function():
                 continue
             break
 
-        res = get_request('/function/running_count/sleep_func')
+        res = get_request('/function/running-count/sleep_func')
         assert res.status_code == 200
         assert res.json() == 0
 
@@ -67,7 +67,7 @@ def test_launch_function():
             assert res.status_code == 200
             assert res.json()['status'] == 'RUNNING'
 
-            res = get_request('/function/running_count/sleep_func')
+            res = get_request('/function/running-count/sleep_func')
             assert res.status_code == 200
             assert res.json() == i+1
 
@@ -75,7 +75,7 @@ def test_launch_function():
         assert res.status_code == 200
         assert not res.json()['success']
 
-        res = get_request('/function/running_count/sleep_func')
+        res = get_request('/function/running-count/sleep_func')
         assert res.status_code == 200
         assert res.json() == 10
 

@@ -1,13 +1,15 @@
 """'Task' is a status of one function process."""
 
 import datetime
+import json
 import logging
 import os
-import pickle
 import sqlite3
 from enum import Enum
 from tempfile import gettempdir
 from typing import Any, List, Optional
+
+from ..utils.logger import get_logger
 
 
 class TaskStoreSettings:
@@ -135,7 +137,7 @@ class SQLiteTaskStore(TaskStore):
             cur = conn.cursor()
 
             cur.execute('DROP TABLE IF EXISTS task')
-            cur.execute('CREATE TABLE IF NOT EXISTS task (task_id TEXT PRIMARY KEY, function_name TEXT, status TEXT, result BLOB, expired INTEGER)')
+            cur.execute('CREATE TABLE IF NOT EXISTS task (task_id TEXT PRIMARY KEY, function_name TEXT, status TEXT, result TEXT, expired INTEGER)')
             cur.execute('CREATE INDEX expired_idx ON task(expired)')
             conn.commit()
 
@@ -160,7 +162,7 @@ class SQLiteTaskStore(TaskStore):
             task_id,
             function_name,
             TaskStatus.RUNNING.name,
-            pickle.dumps({}),
+            json.dumps({}),
             expired,
         ))
         conn.commit()
@@ -179,11 +181,17 @@ class SQLiteTaskStore(TaskStore):
                                 .timestamp())
         expired = current_unix_time + self._expired
 
+        try:
+            store_data = json.dumps(result_obj)
+        except Exception:
+            self._logger.warn('result object is not json serializable')
+            store_data = json.dumps({})
+
         conn = self._get_db()
         cur = conn.cursor()
         cur.execute(SQLiteTaskStore._FINISH_TASK_SQL, (
             status.name,
-            pickle.dumps(result_obj),
+            store_data,
             expired,
             task_id,
         ))
@@ -207,7 +215,7 @@ class SQLiteTaskStore(TaskStore):
             task_id,
             ret[0][1],
             TaskStatus[ret[0][2]],
-            pickle.loads(ret[0][3]),
+            json.loads(ret[0][3]),
         )
 
     def get_current_count(self, function_name: str) -> int:
@@ -235,7 +243,7 @@ class SQLiteTaskStore(TaskStore):
                 row[0],
                 row[1],
                 TaskStatus[row[2]],
-                pickle.loads(row[3]),
+                json.loads(row[3]),
             ))
 
         return info_list
@@ -268,11 +276,11 @@ def task_store_factory(
     settings
         Settings for TaskStore
     clear_db
-        This is set True wher called on the main thread.
+        This is set True when called on the main thread.
 
     """
     if logger is None:
-        logger = logging.getLogger()
+        logger = get_logger('TaskStore')
 
     if settings.type == 'sqlite':
         return SQLiteTaskStore(
