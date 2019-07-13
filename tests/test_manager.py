@@ -22,6 +22,7 @@ def test_task_manager(settings: TaskStoreSettings):
 
     manager.add_function(
         TEST_FUNC,
+        TEST_FUNC.__name__,
         [
             ArgDefinition('a', ArgType.INTEGER, True, '1st'),
             ArgDefinition('b', ArgType.INTEGER, True, '2nd'),
@@ -49,6 +50,7 @@ def test_task_manager_launch_function(settings: TaskStoreSettings):
 
     manager.add_function(
         FAST_FUNC,
+        FAST_FUNC.__name__,
         [
             ArgDefinition('x', ArgType.INTEGER, True, '1st'),
             ArgDefinition('x', ArgType.INTEGER, True, '2nd'),
@@ -94,6 +96,7 @@ def test_task_manager_launch_function_slow_func(settings: TaskStoreSettings):
 
     manager.add_function(
         SLOW_FUNC,
+        SLOW_FUNC.__name__,
         [
             ArgDefinition('x', ArgType.INTEGER, True, '1st'),
             ArgDefinition('y', ArgType.INTEGER, True, '2nd'),

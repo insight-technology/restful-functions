@@ -46,6 +46,28 @@ async def test_api_list_with_functions():
 
 
 @pytest.fixture
+async def test_api_list_function_with_different_endpoint():
+    def function():
+        pass
+
+    server = FunctionServer(shutdown_mode='terminate')
+    server.add_function(function, [], 1)
+    server.add_function(function, [], 1, '', 'function_another_name')
+
+    server._construct_endpoints()
+
+    client = await aiohttp_client(server._app)
+
+    res = await client.get('/api/list/data')
+    assert res.status == 200
+    assert await res.json() == ['function', 'function_another_name']
+
+    res = await client.get('/api/list/text')
+    assert res.status == 200
+    assert await res.text() != ''
+
+
+@pytest.fixture
 async def test_api_function_info():
     def test1():
         pass

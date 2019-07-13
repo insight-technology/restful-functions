@@ -51,6 +51,7 @@ class FunctionManager:
     def add_function(
             self,
             func: Callable,
+            function_name: str,
             arg_definitions: List[ArgDefinition],
             max_concurrency: int = 0,
             description: str = ''):
@@ -62,6 +63,8 @@ class FunctionManager:
             A Python Function.
         arg_definitions
             Definitions of Arguments.
+        function_name
+            Function Name to identify function. It is not necessary to be same with func.__name__ .
         max_concurrency
             A Limitation for number of parallel execution.
             (the default is 0, which tells there is No Limitation.)
@@ -74,14 +77,15 @@ class FunctionManager:
             For max_concurrency.
 
         """
-        if func.__name__ in self._function_definitions:
-            self._logger.info(f'Duplicate Registration: {func.__name__}')
+        if function_name in self._function_definitions:
+            self._logger.info(f'Duplicate Registration: {function_name}')
 
-        self._function_definitions[func.__name__] = FunctionDefinition(
+        self._function_definitions[function_name] = FunctionDefinition(
             func,
             arg_definitions,
             max_concurrency,
-            description
+            description,
+            function_name
         )
 
     def _job_decorator(
@@ -103,20 +107,20 @@ class FunctionManager:
 
         return wrapper
 
-    def launch_function(self, func_name: str, func_args: Dict[str, Any]) -> TryForkResult:
-        func_def = self._function_definitions[func_name]
+    def launch_function(self, function_name: str, func_args: Dict[str, Any]) -> TryForkResult:
+        func_def = self._function_definitions[function_name]
 
         task_id = str(uuid4())
         jobnized_func = self._job_decorator(func_def.func, task_id)
 
-        if func_def.max_concurrency != 0 and self._task_store.get_current_count(func_name) >= func_def.max_concurrency:
+        if func_def.max_concurrency != 0 and self._task_store.get_current_count(function_name) >= func_def.max_concurrency:
             return TryForkResult(
                 False,
                 f'Over Max Concurrency {func_def.max_concurrency}',
                 ''
             )
 
-        self._task_store.initialize_task(task_id, func_name)
+        self._task_store.initialize_task(task_id, function_name)
         self._process_manager.fork_process(jobnized_func, func_args, task_id)
 
         return TryForkResult(
@@ -128,10 +132,10 @@ class FunctionManager:
     def get_task_info(self, task_id: str) -> Optional[TaskInfo]:
         return self._task_store.get_task_info(task_id)
 
-    def get_current_number_of_execution(self, func_name: str) -> Optional[int]:
-        if func_name not in self._function_definitions:
+    def get_current_number_of_execution(self, function_name: str) -> Optional[int]:
+        if function_name not in self._function_definitions:
             return None
-        return self._task_store.get_current_count(func_name)
+        return self._task_store.get_current_count(function_name)
 
     def list_task_info(self, function_name: str) -> List[TaskInfo]:
         return self._task_store.list_task_info(function_name)

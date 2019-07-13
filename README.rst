@@ -75,13 +75,13 @@ Example Usage::
     $ curl localhost:8888/
     /function/list/data
     /function/list/text
-    /function/definition/{func_name}
-    /function/running-count/{func_name}
+    /function/definition/{function_name}
+    /function/running-count/{function_name}
     /task/info/{task_id}
     /task/done/{task_id}
     /task/result/{task_id}
-    /task/list/{func_name}
-    /terminate/function/{func_name}
+    /task/list/{function_name}
+    /terminate/function/{function_name}
     /terminate/task/{task_id}
 
     $ curl localhost:8888/function/list/text
