@@ -92,6 +92,7 @@ class FunctionDefinition:
         'arg_definitions',
         'max_concurrency',
         'description',
+        'function_name',
     ]
 
     def __init__(
@@ -99,30 +100,34 @@ class FunctionDefinition:
             func: Callable,
             arg_definitions: List[ArgDefinition],
             max_concurrency: int,
-            description: str):
+            description: str,
+            function_name: str):
         """.
 
         Parameters
         ----------
         func
-            Python Function that has "name" attribute.
+            Python Function
         arg_definitions
             A List of ArgDefinitions
         max_concurrency
             Max Concurrency
         description
             A Description for this Function.
+        function_name
+            Function Name. It is not necessary to be same with func.__name__
 
         """
         self.func = func
         self.arg_definitions = arg_definitions
         self.max_concurrency = max_concurrency
         self.description = description
+        self.function_name = function_name
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'name': self.func.__name__,
+            'function_name': self.function_name,
             'arg_definitions': [elm.to_dict() for elm in self.arg_definitions],
             'max_concurrency': self.max_concurrency,
-            'description': self.description
+            'description': self.description,
         }

@@ -72,7 +72,6 @@ class FunctionServer:
         if polling_interval <= 0.0:
             raise ValueError('"polling_interval" should be greater than 0.0')
 
-        self._funcname_endpoint_dict: Dict[str, str] = {}
         self._function_manager = FunctionManager(task_store_settings, debug)
 
         self._app = web.Application(
@@ -135,29 +134,24 @@ class FunctionServer:
         """Splited to Unit Test with no server running."""
         # Functions
         async def get_function_list_data(request: web.Request):
-            entrypoints = [self._funcname_endpoint_dict[name] for name in self._funcname_endpoint_dict]
+            entrypoints = [elm.to_dict() for elm in self._function_manager.definitions.values()]
             return web.json_response(entrypoints)
 
         async def get_function_list_text(request: web.Request):
-            function_definitions = self._function_manager.definitions
-
             rows = []
-            for name in function_definitions:
-                elm = function_definitions[name]
-                endpoint_name = self._funcname_endpoint_dict[name]
-
-                rows.append(name)
+            for definition in self._function_manager.definitions.values():
+                rows.append(definition.function_name)
                 rows.append('  URL:')
-                rows.append(f'    async api: /{endpoint_name}')
-                rows.append(f'    block api: /{endpoint_name}/keep-connection')
-                rows.append(f'  Max Concurrency: {elm.max_concurrency}')
+                rows.append(f'    async api: /{definition.function_name}')
+                rows.append(f'    block api: /{definition.function_name}/keep-connection')
+                rows.append(f'  Max Concurrency: {definition.max_concurrency}')
                 rows.append('  Description:')
-                rows.append(f'        {elm.description}')
-                if len(elm.arg_definitions) == 0:
+                rows.append(f'        {definition.description}')
+                if len(definition.arg_definitions) == 0:
                     rows.append('  No Args')
                 else:
                     rows.append('  Args')
-                    for arg in elm.arg_definitions:
+                    for arg in definition.arg_definitions:
                         rows.append(f'    {arg.name} {arg.type.name} {"Requiered" if arg.is_required else "NOT-Required"}')
                         if arg.description != '':
                             rows.append(f'      {arg.description}')
@@ -167,17 +161,17 @@ class FunctionServer:
 
         # function
         async def get_function_definition(request: web.Request):
-            func_name = request.match_info['func_name']
+            function_name = request.match_info['function_name']
 
-            if func_name not in self._function_manager.definitions:
+            if function_name not in self._function_manager.definitions:
                 raise web.HTTPNotFound()
 
-            return web.json_response(self._function_manager.definitions[func_name].to_dict())
+            return web.json_response(self._function_manager.definitions[function_name].to_dict())
 
         async def get_function_running_count(request: web.Request):
-            func_name = request.match_info['func_name']
+            function_name = request.match_info['function_name']
 
-            ret = self._function_manager.get_current_number_of_execution(func_name)
+            ret = self._function_manager.get_current_number_of_execution(function_name)
             if ret is None:
                 raise web.HTTPNotFound()
 
@@ -220,12 +214,12 @@ class FunctionServer:
             return web.json_response(task_info.result)
 
         async def get_task_list(request: web.Request):
-            if 'func_name' not in request.match_info:
+            if 'function_name' not in request.match_info:
                 raise web.HTTPBadRequest()
 
-            func_name = request.match_info['func_name']
+            function_name = request.match_info['function_name']
 
-            tasks = self._function_manager.list_task_info(func_name)
+            tasks = self._function_manager.list_task_info(function_name)
             if tasks is None:
                 raise web.HTTPNotFound()
 
@@ -233,12 +227,12 @@ class FunctionServer:
 
         # Termination
         async def post_terminate_function(request: web.Request):
-            if 'func_name' not in request.match_info:
+            if 'function_name' not in request.match_info:
                 raise web.HTTPBadRequest()
 
-            func_name = request.match_info['func_name']
+            function_name = request.match_info['function_name']
 
-            self._function_manager.terminate_function(func_name)
+            self._function_manager.terminate_function(function_name)
             return web.json_response({})
 
         async def post_terminate_task(request: web.Request, task_id: str):
@@ -253,13 +247,13 @@ class FunctionServer:
         api_list = [
             web.get('/function/list/data', get_function_list_data),
             web.get('/function/list/text', get_function_list_text),
-            web.get(r'/function/definition/{func_name}', get_function_definition),
-            web.get(r'/function/running-count/{func_name}', get_function_running_count),
+            web.get(r'/function/definition/{function_name}', get_function_definition),
+            web.get(r'/function/running-count/{function_name}', get_function_running_count),
             web.get(r'/task/info/{task_id}', get_task_info),
             web.get(r'/task/done/{task_id}', get_task_done),
             web.get(r'/task/result/{task_id}', get_task_result),
-            web.get(r'/task/list/{func_name}', get_task_list),
-            web.post(r'/terminate/function/{func_name}', post_terminate_function),
+            web.get(r'/task/list/{function_name}', get_task_list),
+            web.post(r'/terminate/function/{function_name}', post_terminate_function),
             web.post(r'/terminate/task/{task_id}', post_terminate_task),
         ]
 
@@ -333,7 +327,7 @@ class FunctionServer:
             arg_definitions: List[ArgDefinition],
             max_concurrency: int = 0,
             description: str = '',
-            endpoint_name: Optional[str] = None):
+            function_name: str = ''):
         """Add Job to FunctionServer.
 
         Parameters
@@ -347,8 +341,10 @@ class FunctionServer:
             (the default is 0, which tells there is No Limitation.)
         description
             A Description for The Function. (the default is '', which [default_description])
-        endpoint_name
-            REST API's URL name. (the default is None, which uses the function name.)
+        function_name
+            Function Name. It is not necessary to same with func.__name__.
+            This values is used as REST API's endpoint.
+            (the default is None, which uses the func.__name__.)
 
         Raises
         ------
@@ -359,20 +355,22 @@ class FunctionServer:
         if max_concurrency < 0:
             raise ValueError
 
+        if function_name is not None:
+            function_name = function_name.strip('/')
+
+        if function_name is None or function_name == '':
+            function_name = func.__name__
+
         self._function_manager.add_function(
             func,
+            function_name,
             arg_definitions,
             max_concurrency,
             description
         )
 
-        if endpoint_name is None:
-            endpoint_name = func.__name__
-
-        self._funcname_endpoint_dict[func.__name__] = endpoint_name
-
-        api_async_endpoint = f'/{endpoint_name}'
-        api_sync_endpoint = f'/{endpoint_name}/keep-connection'
+        api_async_endpoint = f'/{function_name}'
+        api_sync_endpoint = f'/{function_name}/keep-connection'
 
         async def post_async_function(request: web.Request):
             try:
@@ -388,7 +386,7 @@ class FunctionServer:
                 self._logger.info(e)
                 return web.json_response({'error': str(e)}, status=400)
 
-            result = self._function_manager.launch_function(func.__name__, func_args)
+            result = self._function_manager.launch_function(function_name, func_args)
             return web.json_response(result.to_dict())
 
         async def post_sync_function(request: web.Request):
@@ -405,12 +403,12 @@ class FunctionServer:
                 self._logger.info(e)
                 return web.json_response({'error': str(e)}, status=400)
 
-            result = self._function_manager.launch_function(func.__name__, func_args)
+            result = self._function_manager.launch_function(function_name, func_args)
 
             if not result.success:
                 return web.json_response(result.to_dict())
 
-            self._logger.info(f'Start Polling, func: {func.__name__}, task_id: {result.task_id}')
+            self._logger.info(f'Start Polling, func: {function_name}, task_id: {result.task_id}')
 
             task_info = None
             while True:

@@ -69,4 +69,7 @@ if __name__ == '__main__':
 
     server.add_function(multi, [], 2, 'Multi Process Function')
 
+    # Differenct Endopint for same function. Max concurrency is checked indivisualy.
+    server.add_function(multi, [], 2, 'Multi Process Function (Another Name)', 'multi2')
+
     server.start()
