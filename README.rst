@@ -137,6 +137,11 @@ Example Usage::
     {"success": false, "message": "Over Max Concurrency 2", "task_id": ""}
 
 
+DEVELOPMENT
+-----------
+recommend: VSCode Remote Container Extension
+
+
 LICENSE
 -------
 MIT
