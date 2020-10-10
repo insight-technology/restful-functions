@@ -2,7 +2,6 @@ import concurrent.futures
 import math
 import os
 import sys
-import time
 
 # for develpment
 try:
@@ -15,8 +14,7 @@ except Exception:
 from restful_functions import ArgDefinition, ArgType, FunctionServer
 
 
-def awesome(x: int, y: int, wait: int):
-    time.sleep(wait)
+def addition(x: int, y: int):
     print(os.getpid(), os.getppid(), f'{x}+{y}={x+y}')
     return x+y
 
@@ -25,7 +23,7 @@ def no_arg_job():
     print(os.getpid(), os.getppid(), 'No args')
 
 
-def is_prime(n):
+def is_prime(n: int):
     if n % 2 == 0:
         return False
 
@@ -56,11 +54,10 @@ if __name__ == '__main__':
     server = FunctionServer(debug=True)
 
     server.add_function(
-        awesome,
+        addition,
         [
             ArgDefinition('x', ArgType.INTEGER, True, 'x'),
             ArgDefinition('y', ArgType.INTEGER, True, 'y'),
-            ArgDefinition('wait', ArgType.INTEGER, True, 'Waiting Seconds'),
         ],
         10,
         'Simple Addition')

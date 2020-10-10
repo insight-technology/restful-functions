@@ -97,6 +97,7 @@ Example Usage::
         A value of X
         y INTEGER Requiered
         A value of Y
+    Timeout: 86400 sec
 
 
     multi
@@ -107,6 +108,7 @@ Example Usage::
     Description:
             Heavy Function
     No Args
+    Timeout: 86400 sec
 
 
     # Call Asynchronous
@@ -115,7 +117,7 @@ Example Usage::
     {"success": true, "message": "", "task_id": "c3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa"}
 
     # Obtain the result by task_id
-    $ curl http://localhost:8888/task/info/3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa
+    $ curl http://localhost:8888/task/info/c3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa
     {"task_id": "c3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa", "function_name": "addition", "status": "DONE", "result": 9}
 
     $ curl http://localhost:8888/task/result/c3a6a0ef-b19e-4e6f-bce3-8d0e5a9046aa
@@ -135,6 +137,83 @@ Example Usage::
 
     $ curl -X POST http://localhost:8888/multi
     {"success": false, "message": "Over Max Concurrency 2", "task_id": ""}
+
+
+TIMEOUT
+-------
+
+You can set timeout to the functions.
+
+FunctionServer checks timeout to all runninng processes every 60 seconds (default).
+The interval can be changed with an argument `polling_timeout_process_interval`.
+
+Example Code::
+
+    import time
+
+    from restful_functions import FunctionServer
+
+    def long_process():
+        time.sleep(100)
+
+
+    if __name__ == '__main__':
+        # Make polling_timeout_process_interval a small value to confirm a terminated process due to timeout
+        server = FunctionServer(polling_timeout_process_interval=1.0)
+        server.add_function(
+            long_process,
+            [],
+            1,
+            'long_process'
+        )
+        server.start()
+
+Example Usage::
+
+    $ curl localhost:8888/
+    /function/list/data
+    /function/list/text
+    /function/definition/{function_name}
+    /function/running-count/{function_name}
+    /task/info/{task_id}
+    /task/done/{task_id}
+    /task/result/{task_id}
+    /task/list/{function_name}
+    /terminate/function/{function_name}
+    /terminate/task/{task_id}
+
+    $ curl localhost:8888/function/list/text
+    long_process
+      URL:
+        async api: /long_process
+        block api: /long_process/keep-connection
+      Max Concurrency: 1
+      Description:
+        timeout test
+      No Args
+      Timeout: 10 sec
+
+
+    # Call Asynchronous
+    # Obtain task_id
+    $ curl -X POST http://localhost:8888/long_process
+    {"success": true, "message": "", "task_id": "d6eb93f9-a8e7-4bba-817c-0fd975b3e41a"}
+
+    # Obtain the result by task_id
+    ## Before 10 seconds at the function called.
+    $ curl http://localhost:8888/task/info/d6eb93f9-a8e7-4bba-817c-0fd975b3e41a
+    {"task_id": "d6eb93f9-a8e7-4bba-817c-0fd975b3e41a", "function_name": "long_process", "status": "RUNNING", "result": "timeout"}
+
+    ## After 10 seconds at the function called.
+    $ curl http://localhost:8888/task/info/d6eb93f9-a8e7-4bba-817c-0fd975b3e41a
+    {"task_id": "d6eb93f9-a8e7-4bba-817c-0fd975b3e41a", "function_name": "long_process", "status": "TIMEOUT", "result": "timeout"}
+
+
+    # Call synchronous
+    # Keeping the connection until the process ends.
+    $ curl -X POST http://localhost:8888/long_process/keep-connection
+    "timeout"
+    # curl request ends after 10 seconds at the function called
 
 
 DEVELOPMENT

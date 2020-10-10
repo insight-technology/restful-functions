@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import multiprocessing
 from typing import Any, Callable, Dict, List, Optional
@@ -33,6 +34,7 @@ class FunctionManager:
     def __init__(
             self,
             task_store_settings: TaskStoreSettings = TaskStoreSettings(),
+            polling_timeout_process_interval: float = 60.0,
             debug: bool = False):
 
         self._task_store_settings = task_store_settings
@@ -41,6 +43,8 @@ class FunctionManager:
 
         self._process_manager = ProcessManager()
         self._task_store = task_store_factory(task_store_settings, True, logger=get_logger('TaskStore'))
+
+        self._polling_timeout_process_interval = polling_timeout_process_interval
 
         self._logger = get_logger(self.__class__.__name__, debug=debug)
 
@@ -54,7 +58,8 @@ class FunctionManager:
             function_name: str,
             arg_definitions: List[ArgDefinition],
             max_concurrency: int = 0,
-            description: str = ''):
+            description: str = '',
+            timeout: int = 60 * 60 * 24):
         """Add Job to FunctionServer.
 
         Parameters
@@ -70,6 +75,8 @@ class FunctionManager:
             (the default is 0, which tells there is No Limitation.)
         description
             A Description for The Function. (the default is '', which [default_description])
+        timeout
+            Function timeout seconds for running. (the default is 86400, which means 1 day.)
 
         Raises
         ------
@@ -85,7 +92,8 @@ class FunctionManager:
             arg_definitions,
             max_concurrency,
             description,
-            function_name
+            function_name,
+            timeout
         )
 
     def _job_decorator(
@@ -120,7 +128,7 @@ class FunctionManager:
                 ''
             )
 
-        self._task_store.initialize_task(task_id, function_name)
+        self._task_store.initialize_task(task_id, func_def.function_name, func_def.timeout)
         self._process_manager.fork_process(jobnized_func, func_args, task_id)
 
         return TryForkResult(
@@ -157,3 +165,14 @@ class FunctionManager:
         for name in self._function_definitions:
             self._task_store.terminate_function(name)
         self._process_manager.terminate_processes()
+
+    def terminate_timeout_process_impl(self):
+        for task in self._task_store.list_timeout_task_info():
+            self._process_manager.terminate_task(task.task_id)
+            self._task_store.terminate_timeout_task(task.task_id)
+
+    async def terminate_timeout_processes_coro(self):
+        """Terminate Timeout Processes. coroutine."""
+        while True:
+            self.terminate_timeout_process_impl()
+            await asyncio.sleep(self._polling_timeout_process_interval)
