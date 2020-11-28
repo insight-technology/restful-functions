@@ -1,15 +1,16 @@
 dist: bionic
 language: python
 cache: pip
-env:
-  - PIP_USE_MIRRORS=true
 python:
   - "3.6"
   - "3.7"
   - "3.8"
-install: pip install -r test-requirements.txt
+  - "3.9"
+env:
+  - PIP_USE_MIRRORS=true
+before_install:
+  - pip install poetry
+install: poetry install
 script:
-  - flake8 ./
-  - pydocstyle ./
-  - mypy ./
-  - python setup.py test
+  - poetry run make lint
+  - poetry run make test
