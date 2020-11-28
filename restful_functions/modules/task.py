@@ -29,7 +29,6 @@ class TaskStoreSettings:
         expired
             Expiration Time for storing a task result.
             The time is measured in seconds.
-
         """
         default_sqlite_dsn = os.path.join(gettempdir(), 'restful-functions.db')
 
@@ -41,6 +40,7 @@ class TaskStoreSettings:
 class TaskStatus(Enum):
     RUNNING = 'RUNNING'
     FAILED = 'FAILED'
+    TIMEOUT = 'TIMEOUT'
     DONE = 'DONE'
 
 
@@ -67,7 +67,7 @@ class TaskInfo:
         return self.status == TaskStatus.DONE
 
     def is_failed(self):
-        return self.status == TaskStatus.FAILED
+        return self.status == TaskStatus.FAILED or self.status == TaskStatus.TIMEOUT
 
     def to_dict(self):
         return {
@@ -84,7 +84,7 @@ class TaskStore:
     処理状態、結果格納
     """
 
-    def initialize_task(self, task_id: str, function_name: str):
+    def initialize_task(self, task_id: str, function_name: str, timeout: int):
         raise NotImplementedError
 
     def finish_task(self, task_id: str, result: Any):
@@ -97,6 +97,12 @@ class TaskStore:
         raise NotImplementedError
 
     def list_task_info(self, function_name: str) -> List[TaskInfo]:
+        raise NotImplementedError
+
+    def list_timeout_task_info(self) -> List[TaskInfo]:
+        raise NotImplementedError
+
+    def terminate_timeout_task(self, task_id: str):
         raise NotImplementedError
 
     def terminate_task(self, task_id: str):
@@ -115,13 +121,15 @@ class SQLiteTaskStore(TaskStore):
     Use SQLite to store tasks.
     """
 
-    _INITIALIZE_TASK_SQL = 'INSERT INTO task(task_id, function_name, status, result, expired) values(?, ?, ?, ?, ?)'
+    _INITIALIZE_TASK_SQL = 'INSERT INTO task(task_id, function_name, status, result, expired, timeout) values(?, ?, ?, ?, ?, ?)'
     _FINISH_TASK_SQL = 'UPDATE task SET status = ?, result = ?, expired = ? WHERE task_id = ?'
     _GET_TASK_INFO_SQL = 'SELECT * FROM task WHERE task_id = ? LIMIT 1'
-    _CURRENT_COUNT_SQL = f'SELECT count(*) FROM task WHERE function_name = ? AND status = "{TaskStatus.RUNNING.name}"'
+    _CURRENT_COUNT_SQL = f"SELECT count(*) FROM task WHERE function_name = ? AND status = '{TaskStatus.RUNNING.name}'"
     _LIST_TASK_INFO_SQL = 'SELECT * FROM task WHERE function_name = ?'
 
-    _DELETE_OLD_STATUS_SQL = 'DELETE FROM task WHERE expired < ?'
+    _LIST_TIMEOUT_TASK_SQL = f"SELECT * FROM task WHERE status == '{TaskStatus.RUNNING.name}' AND timeout IS NOT NULL AND timeout < ?"
+
+    _DELETE_OLD_STATUS_SQL = 'DELETE FROM task WHERE expired IS NOT NULL AND expired < ?'
 
     def __init__(
             self,
@@ -137,8 +145,9 @@ class SQLiteTaskStore(TaskStore):
             cur = conn.cursor()
 
             cur.execute('DROP TABLE IF EXISTS task')
-            cur.execute('CREATE TABLE IF NOT EXISTS task (task_id TEXT PRIMARY KEY, function_name TEXT, status TEXT, result TEXT, expired INTEGER)')
+            cur.execute('CREATE TABLE IF NOT EXISTS task (task_id TEXT PRIMARY KEY, function_name TEXT, status TEXT, result TEXT, expired INTEGER, timeout INTEGER)')
             cur.execute('CREATE INDEX expired_idx ON task(expired)')
+            cur.execute('CREATE INDEX timeout_idx ON task(timeout)')
             conn.commit()
 
             conn.close()
@@ -150,11 +159,11 @@ class SQLiteTaskStore(TaskStore):
     def _get_db(self):
         return sqlite3.connect(self._dsn, 30.0)
 
-    def initialize_task(self, task_id: str, function_name: str):
+    def initialize_task(self, task_id: str, function_name: str, timeout: int):
         current_unix_time = int(datetime.datetime
                                 .now(datetime.timezone.utc)
                                 .timestamp())
-        expired = current_unix_time + self._expired
+        timeout = current_unix_time + timeout
 
         conn = self._get_db()
         cur = conn.cursor()
@@ -163,7 +172,8 @@ class SQLiteTaskStore(TaskStore):
             function_name,
             TaskStatus.RUNNING.name,
             json.dumps({}),
-            expired,
+            None,
+            timeout
         ))
         conn.commit()
         conn.close()
@@ -192,6 +202,22 @@ class SQLiteTaskStore(TaskStore):
         cur.execute(SQLiteTaskStore._FINISH_TASK_SQL, (
             status.name,
             store_data,
+            expired,
+            task_id,
+        ))
+        conn.commit()
+        conn.close()
+
+    def terminate_timeout_task(self, task_id: str):
+        current_unix_time = int(datetime.datetime
+                                .now(datetime.timezone.utc)
+                                .timestamp())
+        expired = current_unix_time + self._expired
+        conn = self._get_db()
+        cur = conn.cursor()
+        cur.execute(SQLiteTaskStore._FINISH_TASK_SQL, (
+            TaskStatus.TIMEOUT.name,
+            json.dumps('timeout'),
             expired,
             task_id,
         ))
@@ -235,6 +261,31 @@ class SQLiteTaskStore(TaskStore):
         ret = cur.execute(
             SQLiteTaskStore._LIST_TASK_INFO_SQL,
             (function_name,)).fetchall()
+        conn.close()
+
+        info_list = []
+        for row in ret:
+            info_list.append(TaskInfo(
+                row[0],
+                row[1],
+                TaskStatus[row[2]],
+                json.loads(row[3]),
+            ))
+
+        return info_list
+
+    def list_timeout_task_info(self) -> List[TaskInfo]:
+        self._refresh_tasks()
+
+        current_unix_time = int(datetime.datetime
+                                .now(datetime.timezone.utc)
+                                .timestamp())
+
+        conn = self._get_db()
+        cur = conn.cursor()
+        ret = cur.execute(
+            SQLiteTaskStore._LIST_TIMEOUT_TASK_SQL,
+            (current_unix_time,)).fetchall()
         conn.close()
 
         info_list = []

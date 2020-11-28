@@ -21,8 +21,8 @@ class FunctionServer:
             shutdown_mode: str = 'join',
             host: str = '0.0.0.0',
             port: int = 8888,
-            timeout: int = 60*60*24,
-            polling_interval: float = 1.0,
+            polling_process_status_interval: float = 1.0,
+            polling_timeout_process_interval: float = 60.0,
             debug: bool = False,
             register_sys_signals: bool = True,
             task_store_settings: TaskStoreSettings = TaskStoreSettings(),
@@ -40,14 +40,13 @@ class FunctionServer:
             RESTful APIs host. (the default is '0.0.0.0')
         port
             RESTful APIs port. (the default is 8888)
-        timeout
-            Timeout of keeping the connection after a connection established.
-            This is measured in Second.
-            (the default is 60*60*24)
-        polling_interval
+        polling_process_status_interval
             An interval of confirming processes runnning.
-            FuncitonServer repeats checking a process status when you use blocking API.
+            FunctionServer repeats checking the process status for blocking API while the function is running.
             (the default is 1.0)
+        polling_timeout_process_interval
+            An interval of searching for timeout processes in all runninng processes.
+            (the default is 60.0)
         debug
             Is Debug Mode or Not. (the default is False)
         register_sys_signals
@@ -66,13 +65,13 @@ class FunctionServer:
         if shutdown_mode not in ['terminate', 'join']:
             raise ValueError('"shutdown_mode" should be "terminate" or "join"')
 
-        if timeout <= 0:
-            raise ValueError('"timeout" should be greater than 0')
+        if polling_process_status_interval <= 0.0:
+            raise ValueError('"polling_process_status_interval" should be greater than 0.0')
 
-        if polling_interval <= 0.0:
-            raise ValueError('"polling_interval" should be greater than 0.0')
+        if polling_timeout_process_interval <= 0.0:
+            raise ValueError('"polling_timeout_process_interval" should be greater than 0.0')
 
-        self._function_manager = FunctionManager(task_store_settings, debug)
+        self._function_manager = FunctionManager(task_store_settings, polling_timeout_process_interval, debug)
 
         self._app = web.Application(
             middlewares=(web.normalize_path_middleware(append_slash=False, remove_slash=True),)
@@ -82,7 +81,7 @@ class FunctionServer:
         self._host = host
         self._port = port
 
-        self._polling_interval = polling_interval
+        self._polling_timeout_process_interval = polling_process_status_interval
 
         self._debug = debug
 
@@ -128,7 +127,9 @@ class FunctionServer:
             while True:
                 await asyncio.sleep(3600)
 
-        self._loop.run_until_complete(server_coro())
+        self._loop.create_task(server_coro())
+        self._loop.create_task(self._function_manager.terminate_timeout_processes_coro())
+        self._loop.run_forever()
 
     def _construct_endpoints(self):
         """Splited to Unit Test with no server running."""
@@ -155,6 +156,7 @@ class FunctionServer:
                         rows.append(f'    {arg.name} {arg.type.name} {"Requiered" if arg.is_required else "NOT-Required"}')
                         if arg.description != '':
                             rows.append(f'      {arg.description}')
+                rows.append(f'  Timeout: {definition.timeout} sec')
                 rows.append('\n')
 
             return web.Response(text='\n'.join(rows))
@@ -327,7 +329,8 @@ class FunctionServer:
             arg_definitions: List[ArgDefinition],
             max_concurrency: int = 0,
             description: str = '',
-            function_name: str = ''):
+            function_name: str = None,
+            timeout: int = 60 * 60 * 24):
         """Add Job to FunctionServer.
 
         Parameters
@@ -345,11 +348,15 @@ class FunctionServer:
             Function Name. It is not necessary to same with func.__name__.
             This values is used as REST API's endpoint.
             (the default is None, which uses the func.__name__.)
+        timeout
+            Function timeout seconds for running. (the default is 86400, which means 1 day.)
+            timeout works properly if this value is more than polling_timeout_process_interval (this class's property).
 
         Raises
         ------
         ValueError
             For max_concurrency.
+            For timeout.
 
         """
         if max_concurrency < 0:
@@ -361,12 +368,16 @@ class FunctionServer:
         if function_name is None or function_name == '':
             function_name = func.__name__
 
+        if timeout < 0:
+            raise ValueError
+
         self._function_manager.add_function(
             func,
             function_name,
             arg_definitions,
             max_concurrency,
-            description
+            description,
+            timeout
         )
 
         api_async_endpoint = f'/{function_name}'
@@ -386,7 +397,7 @@ class FunctionServer:
                 self._logger.info(e)
                 return web.json_response({'error': str(e)}, status=400)
 
-            result = self._function_manager.launch_function(function_name, func_args)
+            result = self._function_manager.launch_function(function_name, func_args)  # type: ignore
             return web.json_response(result.to_dict())
 
         async def post_sync_function(request: web.Request):
@@ -403,7 +414,7 @@ class FunctionServer:
                 self._logger.info(e)
                 return web.json_response({'error': str(e)}, status=400)
 
-            result = self._function_manager.launch_function(function_name, func_args)
+            result = self._function_manager.launch_function(function_name, func_args)  # type: ignore
 
             if not result.success:
                 return web.json_response(result.to_dict())
@@ -420,7 +431,7 @@ class FunctionServer:
                 if task_info.is_done():
                     break
 
-                await asyncio.sleep(self._polling_interval)
+                await asyncio.sleep(self._polling_timeout_process_interval)
 
             return web.json_response(task_info.result)
 

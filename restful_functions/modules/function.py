@@ -93,6 +93,7 @@ class FunctionDefinition:
         'max_concurrency',
         'description',
         'function_name',
+        'timeout'
     ]
 
     def __init__(
@@ -101,7 +102,8 @@ class FunctionDefinition:
             arg_definitions: List[ArgDefinition],
             max_concurrency: int,
             description: str,
-            function_name: str):
+            function_name: str,
+            timeout: int):
         """.
 
         Parameters
@@ -116,13 +118,15 @@ class FunctionDefinition:
             A Description for this Function.
         function_name
             Function Name. It is not necessary to be same with func.__name__
-
+        timeout
+            Function timeout for running
         """
         self.func = func
         self.arg_definitions = arg_definitions
         self.max_concurrency = max_concurrency
         self.description = description
         self.function_name = function_name
+        self.timeout = timeout
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -130,4 +134,5 @@ class FunctionDefinition:
             'arg_definitions': [elm.to_dict() for elm in self.arg_definitions],
             'max_concurrency': self.max_concurrency,
             'description': self.description,
+            'timeout': self.timeout,
         }
