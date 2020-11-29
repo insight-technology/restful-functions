@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "restful-functions"
-version = "0.0.0"
+version = "3.0.a2"
 description = "A Server Module to Build RESTful APIs for Python Functions"
 authors = []
 readme = "README.rst"
@@ -27,6 +27,7 @@ license = "MIT"
 python = "^3.6"
 aiohttp = "^3.7.3"
 idna_ssl = "^1.1.0"
+importlib-metadata = {version = "^3.0", python = "<3.8"}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
