@@ -1,5 +1,6 @@
+#######################################
 restful-functions
-=================
+#######################################
 
 A Server Module to Build RESTful APIs for Python Fnctions.
 
@@ -7,8 +8,9 @@ This framework forks a new process to run the specified function on each api req
 
 You can specify a maximum concurrency of the function. The api request is denied if the nubmer of running processes for the function is already reaches the concurrency limitation.
 
+***************************************
 How to Use
-----------
+***************************************
 
 Example Code::
 
@@ -139,8 +141,9 @@ Example Usage::
     {"success": false, "message": "Over Max Concurrency 2", "task_id": ""}
 
 
+***************************************
 TIMEOUT
--------
+***************************************
 
 You can set timeout to the functions.
 
@@ -215,22 +218,36 @@ Example Usage::
     "timeout"
     # curl request ends after 10 seconds at the function called
 
-
+***************************************
 DEVELOPMENT
------------
-recommend: VSCode Remote Container Extension
+***************************************
 
+Tools
+=======================================
+* Using
 
+  * Docker
+  * poetry
+
+* Recommended
+
+  * VSCode Remote Container Extension
+
+Shell in Docker container
+=======================================
+
+How to run python scripts::
+
+    // 1. use `poetry shell`
+    root@0aa0391397dd:/app# poetry shell
+    Spawning shell within /root/.cache/pypoetry/virtualenvs/restful-functions-9TtSrW0h-py3.6
+    root@0aa0391397dd:/app# . /root/.cache/pypoetry/virtualenvs/restful-functions-9TtSrW0h-py3.6/bin/activate
+    (restful-functions-9TtSrW0h-py3.6) root@0aa0391397dd:/app# python examples/example.py
+
+    // 2. type `poetry run` every time
+    root@0aa0391397dd:/app# poetry run python examples/example.py
+
+***************************************
 LICENSE
--------
+***************************************
 MIT
-
-TODO
-----
-[ ] Write Documents
-
-[ ] Write CONTRIBUTING.md
-
-[ ] Show Test Coverage
-
-[ ] Deploy with CI Service

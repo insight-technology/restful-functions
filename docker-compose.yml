@@ -4,8 +4,6 @@ services:
 
   dev:
     build: .
-    environment:
-      COMPOSE_CONVERT_WINDOWS_PATHS: 1
     volumes:
       - .:/app/
     ports:
