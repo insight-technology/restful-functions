@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "restful-functions"
-version = "3.0.a2"
+version = "3.0.0"
 description = "A Server Module to Build RESTful APIs for Python Functions"
 authors = []
 readme = "README.rst"
